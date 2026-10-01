@@ -197,14 +197,6 @@ const Navbar = () => {
             Home
           </NavLink>
 
-          <NavLink
-            to="/properties"
-            className={navLinkClass}
-            onClick={closeMenu}
-          >
-            Properties
-          </NavLink>
-
           {renderRoleLinks()}
 
           {isLoggedIn ? (

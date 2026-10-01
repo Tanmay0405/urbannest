@@ -43,7 +43,8 @@ const Hero = () => {
             "url('https://images.unsplash.com/photo-1560448204-e02f11c3d0e2')",
         }}
       >
-        <div className="absolute inset-0 bg-black/55" />
+        {/* Darker overlay on the left for better text readability */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/50 to-black/10" />
 
         <div className="relative z-10 mx-auto flex min-h-[620px] max-w-7xl flex-col justify-center px-4 py-16 sm:min-h-[680px] sm:px-6 lg:px-8">
           <div className="max-w-3xl">
@@ -56,7 +57,7 @@ const Hero = () => {
               <span className="block text-indigo-300">feels like home.</span>
             </h1>
 
-            <p className="mt-6 max-w-2xl text-base leading-7 text-gray-200 sm:text-lg">
+            <p className="mt-6 max-w-2xl text-base leading-7 text-white sm:text-lg">
               Discover properties that match your lifestyle, location, and
               budget. Explore listings and find your next place with UrbanNest.
             </p>
@@ -137,21 +138,13 @@ const Hero = () => {
                     className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
                   >
                     <option value="">Any type</option>
-
                     <option value="Apartment">Apartment</option>
-
                     <option value="House">House</option>
-
                     <option value="Villa">Villa</option>
-
                     <option value="Office">Office</option>
-
                     <option value="Shop">Shop</option>
-
                     <option value="Warehouse">Warehouse</option>
-
                     <option value="Event Space">Event Space</option>
-
                     <option value="Other">Other</option>
                   </select>
                 </div>
