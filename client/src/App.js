@@ -1,4 +1,4 @@
-import "./App.css";
+﻿import "./App.css";
 import { Routes, Route } from "react-router-dom";
 import { createContext, useReducer, useEffect } from "react";
 
@@ -30,7 +30,6 @@ import PasswordReset from "./components/auth/PasswordReset";
 import ForgotPassword from "./components/auth/ForgotPassword";
 import VerifySuccess from "./components/auth/VerifySuccess";
 
-import { CalendarView } from "./components/CalendarView";
 
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -100,8 +99,6 @@ const App = () => {
             element={<div style={{ padding: "40px" }}>Profile Page</div>}
           />
 
-          <Route path="/calendar" element={<CalendarView />} />
-
           {/* UrbanNest Dashboard */}
           <Route
             path="/dashboard"
@@ -147,3 +144,4 @@ const App = () => {
 };
 
 export default App;
+

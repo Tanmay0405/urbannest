@@ -1,4 +1,4 @@
-const express = require("express");
+﻿const express = require("express");
 
 require("dotenv").config();
 
@@ -22,7 +22,6 @@ app.use(cookieParser());
 connectDB();
 
 require("./model/userSchema");
-require("./model/hallSchema");
 require("./model/bookingSchema");
 require("./model/propertySchema");
 
@@ -35,7 +34,6 @@ app.use(require("./router/favoriteRoutes"));
 
 app.use(require("./router/authRoutes"));
 app.use(require("./router/bookingRoutes"));
-app.use(require("./router/hallRoutes"));
 
 const propertyRoutes = require("./router/propertyRoutes");
 app.use("/", propertyRoutes);
@@ -45,3 +43,4 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log("Server is running on port", PORT);
 });
+

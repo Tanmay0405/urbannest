@@ -1,149 +1,85 @@
-# 🚀 BookIt Lite (EventSphere)
+@'
 
-A full-stack MERN application for seamless hall/event booking with secure authentication, real-time availability checks, and an intuitive user interface.
+# UrbanNest
 
----
+A full-stack MERN property marketplace that connects buyers with sellers to discover, list, and manage properties.
 
-## 🌐 Live Demo
+## Features
 
-https://bookit-lite-ggg03axdk-tanmay0405s-projects.vercel.app/
+### Buyers
 
----
+- Browse active property listings
+- Search properties by keyword and location
+- Filter by city, property type, price, and bedrooms
+- View detailed property information
+- Save and remove favorite properties
+- Submit booking requests
+- View personal bookings
+- Cancel eligible booking requests
 
-## 📌 Features
+### Sellers
 
-* 🔐 JWT-based Authentication & Authorization
-* 🏢 Hall/Event Listing & Management
-* 📅 Real-time Booking System with Availability Checks
-* 👤 User Dashboard for Managing Bookings
-* 🛠️ Admin Panel for Managing Halls & Requests
-* 🔍 Search & Filter Functionality
-* 📱 Fully Responsive UI
+- Create property listings
+- Edit property information
+- Activate or deactivate listings
+- Delete owned listings
+- View incoming booking requests
+- Approve or reject booking requests
 
----
+### Admin
 
-## 🛠️ Tech Stack
+- View users and marketplace data
+- Manage property listings
+- Manage booking statuses
+- Deactivate listings when required
 
-**Frontend:**
+## Tech Stack
 
-* React.js
-* Redux (State Management)
-* Tailwind CSS
+### Frontend
 
-**Backend:**
+- React.js
+- React Router
+- Axios
+- Tailwind CSS
+- React Toastify
+- React Icons
 
-* Node.js
-* Express.js
+### Backend
 
-**Database:**
+- Node.js
+- Express.js
+- MongoDB
+- Mongoose
+- JWT
+- bcryptjs
 
-* MongoDB (Mongoose)
+### Tools
 
-**Other Tools:**
+- Postman
+- Git & GitHub
+- Vercel
+- Render
 
-* JWT (Authentication)
-* Axios (API Calls)
-* Postman (API Testing)
+## Project Structure
 
----
-
-## 🏗️ Project Structure
-
-```
-BookIt/
-│── client/        # React frontend
-│── server/        # Node.js backend
+```text
+UrbanNest/
+├── client/
+│   └── src/
+│       ├── components/
+│       │   ├── auth/
+│       │   ├── dashboard/
+│       │   └── properties/
+│       ├── reducer/
+│       └── App.js
+│
+├── server/
 │   ├── controllers/
-│   ├── models/
-│   ├── routes/
 │   ├── middleware/
-│── README.md
+│   ├── model/
+│   ├── router/
+│   ├── DB/
+│   └── app.js
+│
+└── README.md
 ```
-
----
-
-## ⚙️ Installation & Setup
-
-### 1️⃣ Clone the repository
-
-```bash
-git clone https://github.com/Tanmay0405/bookit-lite.git
-cd YOUR_REPO
-```
-
-### 2️⃣ Setup Backend
-
-```bash
-cd server
-npm install
-```
-
-Create `.env` file in `server/`:
-
-```
-DATABASE=your_mongodb_url
-SECRET_KEY=your_secret_key
-```
-
-Run backend:
-
-```bash
-npm start
-```
-
----
-
-### 3️⃣ Setup Frontend
-
-```bash
-cd client
-npm install
-npm start
-```
-
----
-
-## 📸 Screenshots
-
-*(Add your project screenshots here)*
-
-* Home Page
-* Booking Page
-* Dashboard
-* Admin Panel
-
----
-
-## 🧠 Key Learnings
-
-* Designed scalable RESTful APIs using Express.js
-* Implemented secure JWT-based authentication
-* Managed state efficiently using Redux
-* Built responsive UI using Tailwind CSS
-* Handled real-world booking conflicts and validations
-
----
-
-## 🚀 Future Enhancements
-
-* 💳 Payment Integration (Stripe/Razorpay)
-* 🔔 Real-time Notifications
-* ⭐ Review & Rating System
-* 📊 Advanced Analytics Dashboard
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Feel free to fork and improve.
-
----
-
-## 📧 Contact
-
-👤 Tanmay
-📩 *Add your email / LinkedIn here*
-
----
-
-⭐ If you like this project, give it a star!
