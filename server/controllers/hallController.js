@@ -1,110 +1,287 @@
-const Hall = require('../model/hallSchema');
-const User = require("../model/userSchema");
+const Hall = require("../model/hallSchema");
+
 
 const createHall = async (req, res, next) => {
   try {
-    const { name, location, capacity,amenities,description,hallCreater } = req.body;
+    const {
+      name,
+      location,
+      capacity,
+      amenities,
+      description,
+    } = req.body;
 
-    if (!name || !location || !capacity || !amenities || !description || !hallCreater) {
-      return res.status(422).json({ error: "Please fill all details" });
+
+    if (
+      !name ||
+      !location ||
+      !capacity ||
+      !amenities ||
+      !description
+    ) {
+      return res.status(422).json({
+        error: "Please fill all details.",
+      });
     }
 
-    if (capacity <= 0) {
-      return res.status(422).json({ error: "Please enter a valid capacity greater than zero" });
+
+    if (Number(capacity) <= 0) {
+      return res.status(422).json({
+        error: "Capacity must be greater than zero.",
+      });
     }
-    const hall = new Hall({ name, location, capacity,amenities,description,hallCreater });
+
+
+    // IMPORTANT:
+    // Owner is taken from authenticated user.
+    // Never trust hallCreater from frontend.
+    const hall = new Hall({
+      name: name.trim(),
+      location: location.trim(),
+      capacity: Number(capacity),
+      amenities: amenities.trim(),
+      description: description.trim(),
+      hallCreater: req.rootUser.email,
+    });
+
+
     await hall.save();
-    res.status(201).json({ message: 'Hall created successfully' });
+
+
+    return res.status(201).json({
+      message: "Property listing created successfully.",
+      hall,
+    });
+
   } catch (error) {
     next(error);
   }
 };
 
+
+
 const getHalls = async (req, res, next) => {
   try {
-    const { search, minCapacity, maxCapacity } = req.query;
+    const {
+      search,
+      minCapacity,
+      maxCapacity,
+    } = req.query;
 
-    let filter = {};
 
-    if (search) {
+    const filter = {};
+
+
+    if (search && search.trim()) {
       filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { location: { $regex: search, $options: "i" } }
+        {
+          name: {
+            $regex: search.trim(),
+            $options: "i",
+          },
+        },
+        {
+          location: {
+            $regex: search.trim(),
+            $options: "i",
+          },
+        },
+        {
+          description: {
+            $regex: search.trim(),
+            $options: "i",
+          },
+        },
       ];
     }
 
 
     if (minCapacity || maxCapacity) {
       filter.capacity = {};
-      if (minCapacity) filter.capacity.$gte = Number(minCapacity);
-      if (maxCapacity) filter.capacity.$lte = Number(maxCapacity);
+
+      if (minCapacity) {
+        filter.capacity.$gte = Number(minCapacity);
+      }
+
+      if (maxCapacity) {
+        filter.capacity.$lte = Number(maxCapacity);
+      }
     }
 
-    const halls = await Hall.find(filter);
 
-    res.status(200).json({ halls });
+    const halls = await Hall.find(filter)
+      .sort({ _id: -1 });
+
+
+    return res.status(200).json({
+      halls,
+    });
 
   } catch (error) {
     next(error);
   }
 };
+
+
+
 const getHallById = async (req, res, next) => {
   try {
     const { hallId } = req.params;
+
     const hall = await Hall.findById(hallId);
+
+
     if (!hall) {
-      return res.status(404).json({ message: 'Hall not found' });
+      return res.status(404).json({
+        message: "Property not found.",
+      });
     }
-    res.json({ hall });
+
+
+    return res.status(200).json({
+      hall,
+    });
+
   } catch (error) {
     next(error);
   }
 };
+
+
 
 const updateHall = async (req, res, next) => {
   try {
     const { hallId } = req.params;
-    const { name, location, capacity ,amenities,description} = req.body;
-    const currentUserMail = req.rootUser.email; // Renamed to avoid conflict
-    const masterAdminmail = process.env.REACT_APP_MASTER_ADMIN;
+
+    const {
+      name,
+      location,
+      capacity,
+      amenities,
+      description,
+    } = req.body;
+
+
     const hall = await Hall.findById(hallId);
 
+
     if (!hall) {
-      return res.status(404).json({ message: 'Hall not found' });
+      return res.status(404).json({
+        message: "Property not found.",
+      });
     }
 
-    if (hall.hallCreater !== currentUserMail && currentUserMail !== masterAdminmail) {
-    // if (hall.hallCreater !== hallCreatorEmail) {
-      return res.status(403).json({ message: 'Unauthorized' }); // 403 means "Forbidden"
+
+    const isOwner =
+      hall.hallCreater === req.rootUser.email;
+
+    const isAdmin =
+      req.rootUser.userType === "admin";
+
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({
+        message:
+          "You can only modify your own property listings.",
+      });
     }
+
+
+    if (
+      !name ||
+      !location ||
+      !capacity ||
+      !amenities ||
+      !description
+    ) {
+      return res.status(422).json({
+        error: "Please fill all details.",
+      });
+    }
+
+
+    if (Number(capacity) <= 0) {
+      return res.status(422).json({
+        error: "Capacity must be greater than zero.",
+      });
+    }
+
 
     const updatedHall = await Hall.findByIdAndUpdate(
       hallId,
-      { name, location, capacity, amenities, description },
-      { new: true }
+      {
+        name: name.trim(),
+        location: location.trim(),
+        capacity: Number(capacity),
+        amenities: amenities.trim(),
+        description: description.trim(),
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
     );
 
-    if (!updatedHall) {
-      return res.status(404).json({ message: 'Hall not found' });
-    }
 
-    res.json({ hall: updatedHall });
+    return res.status(200).json({
+      message: "Property updated successfully.",
+      hall: updatedHall,
+    });
+
   } catch (error) {
     next(error);
   }
 };
+
+
 
 const deleteHall = async (req, res, next) => {
   try {
     const { hallId } = req.params;
-    const hall = await Hall.findByIdAndDelete(hallId);
+
+
+    const hall = await Hall.findById(hallId);
+
+
     if (!hall) {
-      return res.status(404).json({ message: 'Hall not found' });
+      return res.status(404).json({
+        message: "Property not found.",
+      });
     }
-    res.json({ message: 'Hall deleted successfully' });
+
+
+    const isOwner =
+      hall.hallCreater === req.rootUser.email;
+
+    const isAdmin =
+      req.rootUser.userType === "admin";
+
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({
+        message:
+          "You can only delete your own property listings.",
+      });
+    }
+
+
+    await Hall.findByIdAndDelete(hallId);
+
+
+    return res.status(200).json({
+      message: "Property deleted successfully.",
+    });
+
   } catch (error) {
     next(error);
   }
 };
 
-module.exports = { createHall, getHalls, getHallById, updateHall, deleteHall };
+
+module.exports = {
+  createHall,
+  getHalls,
+  getHallById,
+  updateHall,
+  deleteHall,
+};

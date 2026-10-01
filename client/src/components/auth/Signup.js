@@ -7,467 +7,277 @@ import { toast } from "react-toastify";
 
 const Signup = () => {
   const navigate = useNavigate();
-  const [authStatus, setAuthStatus] = useState("");
+
   const [isLoading, setIsLoading] = useState(false);
+  const [authStatus, setAuthStatus] = useState("");
+
 
   const [user, setUser] = useState({
     name: "",
     email: "",
     phone: "",
     userType: "",
-    institution: "",
-    department: "",
     password: "",
     cpassword: "",
     adminKey: "",
   });
 
-  let name, value;
+
   const handleInputs = (e) => {
-    name = e.target.name;
-    value = e.target.value;
-    setUser({ ...user, [name]: value });
-    console.log(user)
+    const { name, value } = e.target;
+
+    setUser((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
   };
-const PostData = async (e) => {
-  e.preventDefault();
-  setIsLoading(true);
 
-  try {
-    await axios.post(
-      "http://localhost:5000/register",
-      {
-        name: user.name,
-        email: user.email,
-        phone: user.phone || "1234567890",
-        userType: "buyer",
-        institution: "NA",
-        department: "NA",
-        password: user.password,
-        cpassword: user.cpassword,
-      }
-    );
 
-    setIsLoading(false);
-    toast.success("Signup Successful!");
-    navigate("/login");
+  const postData = async (e) => {
+    e.preventDefault();
 
-  } catch (error) {
-    setIsLoading(false);
-    console.log(error);
+    setAuthStatus("");
+    setIsLoading(true);
 
-    if (error.response) {
-      alert(error.response.data.error || "Signup failed");
-    } else {
-      alert("Server not responding");
+
+    try {
+      await axios.post(
+        `${process.env.REACT_APP_SERVER_URL}/register`,
+        {
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          userType: user.userType,
+          password: user.password,
+          cpassword: user.cpassword,
+          adminKey:
+            user.userType === "admin"
+              ? user.adminKey
+              : undefined,
+        }
+      );
+
+
+      toast.success("Account created successfully.");
+
+      navigate("/login");
+
+    } catch (error) {
+      console.error("SIGNUP ERROR:", error);
+
+      const message =
+        error.response?.data?.error ||
+        "Unable to create account.";
+
+      setAuthStatus(message);
+
+      toast.error(message);
+
+    } finally {
+      setIsLoading(false);
     }
-  }
-};
+  };
+
 
   return (
     <>
       {isLoading ? (
         <LoadingSpinner />
       ) : (
-        <section className="text-gray-600 body-font my-10  min-h-screen flex items-center justify-center bg-white">
-          <div className="lg:w-2/6 md:w-1/2 my-10 bg-white shadow-2xl shadow-blue-200 rounded-lg p-8 flex flex-col md:ml-auto md:mr-auto mt-10 md:mt-0">
-            <form method="POST">
-              <h3 className="text-3xl my-8 sm:text-4xl leading-normal font-extrabold tracking-tight text-gray-900">
-                Sign <span className="text-indigo-600">Up</span>
-              </h3>
-              <div className="relative mb-4">
-                <label
-                  htmlFor="full-name"
-                  className="leading-7 block uppercase tracking-wide text-gray-700 text-xs font-bold">
+        <section className="min-h-screen flex items-center justify-center bg-white px-4 py-10">
+
+          <div className="w-full max-w-lg bg-white shadow-2xl shadow-blue-200 rounded-lg p-8">
+
+            <h3 className="text-3xl mb-8 font-extrabold text-gray-900">
+              Create your{" "}
+              <span className="text-indigo-600">
+                UrbanNest
+              </span>{" "}
+              account
+            </h3>
+
+
+            <form onSubmit={postData}>
+
+              {/* Name */}
+              <div className="mb-4">
+                <label className="block uppercase tracking-wide text-gray-700 text-xs font-bold mb-2">
                   Full Name
                 </label>
+
                 <input
                   required
                   type="text"
+                  name="name"
                   value={user.name}
                   onChange={handleInputs}
-                  id="name"
-                  name="name"
                   placeholder="Full Name"
-                  className="w-full bg-white rounded border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out"
+                  className="w-full border border-gray-300 rounded py-2 px-3 outline-none focus:border-indigo-500"
                 />
               </div>
-              <div className="relative mb-4">
-                <label
-                  htmlFor="email"
-                  className="leading-7 block uppercase tracking-wide text-gray-700 text-xs font-bold">
+
+
+              {/* Email */}
+              <div className="mb-4">
+                <label className="block uppercase tracking-wide text-gray-700 text-xs font-bold mb-2">
                   Email
                 </label>
+
                 <input
-                  type="email"
                   required
+                  type="email"
+                  name="email"
                   value={user.email}
                   onChange={handleInputs}
-                  id="email"
-                  name="email"
                   placeholder="Email"
-                  className="w-full bg-white rounded border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out"
+                  className="w-full border border-gray-300 rounded py-2 px-3 outline-none focus:border-indigo-500"
                 />
               </div>
 
-              <div className="relative mb-4">
-                <label
-                  htmlFor="phone"
-                  className="leading-7 block uppercase tracking-wide text-gray-700 text-xs font-bold">
+
+              {/* Phone */}
+              <div className="mb-4">
+                <label className="block uppercase tracking-wide text-gray-700 text-xs font-bold mb-2">
                   Phone
                 </label>
+
                 <input
-                  type="tel"
-                  pattern="[0-9]{10}"
                   required
+                  type="tel"
+                  name="phone"
                   value={user.phone}
                   onChange={handleInputs}
-                  id="phone"
-                  name="phone"
-                  placeholder="Phone"
-                  className="w-full bg-white rounded border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out"
+                  placeholder="10-digit phone number"
+                  maxLength="10"
+                  className="w-full border border-gray-300 rounded py-2 px-3 outline-none focus:border-indigo-500"
                 />
               </div>
 
-              <div className="relative mb-4">
-                <label
-                  htmlFor="userType"
-                  className="leading-7 block uppercase tracking-wide text-gray-700 text-xs font-bold">
-                  Your Role
+
+              {/* Role */}
+              <div className="mb-4">
+                <label className="block uppercase tracking-wide text-gray-700 text-xs font-bold mb-2">
+                  Account Type
                 </label>
 
                 <select
-                  className="w-full bg-white rounded border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out"
-                  id="userType"
+                  required
                   name="userType"
                   value={user.userType}
-                  onChange={handleInputs}>
-                  <option value="">Select</option>
-                  <option value="buyer">Buyer</option>
-                  <option value="seller">Seller</option>
+                  onChange={handleInputs}
+                  className="w-full border border-gray-300 rounded py-2 px-3 outline-none focus:border-indigo-500"
+                >
+                  <option value="">
+                    Select account type
+                  </option>
 
-                  
+                  <option value="buyer">
+                    Buyer
+                  </option>
+
+                  <option value="seller">
+                    Seller
+                  </option>
 
                   {process.env.REACT_APP_ADMIN_SIGN_UP === "true" && (
-                    <option value="admin">Admin</option>
+                    <option value="admin">
+                      Admin
+                    </option>
                   )}
                 </select>
               </div>
 
-              {user.userType === "admin" ? (
-                <>
-                  <div className="relative mb-4">
-                    <label
-                      htmlFor="adminKey"
-                      className="leading-7 block uppercase tracking-wide text-gray-700 text-xs font-bold">
-                      Admin Key
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={user.adminKey}
-                      onChange={handleInputs}
-                      id="adminKey"
-                      name="adminKey"
-                      placeholder="Admin Key"
-                      className="w-full bg-white rounded border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out"
-                    />
-                  </div>
-                </>
-              ) : (
-                <>
 
+              {/* Admin key */}
+              {user.userType === "admin" && (
+                <div className="mb-4">
+                  <label className="block uppercase tracking-wide text-gray-700 text-xs font-bold mb-2">
+                    Admin Key
+                  </label>
 
-
-
-
-
-{/* 
-
-
-
-
-
-                  <div className="relative mb-4">
-                    <label
-                      htmlFor="institution"
-                      className="leading-7 block uppercase tracking-wide text-gray-700 text-xs font-bold">
-                      Institution
-                    </label>
-
-                    <select
-                      className="w-full bg-white rounded border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out"
-                      id="institution"
-                      name="institution"
-                      value={user.institution}
-                      onChange={handleInputs}>
-                      <option value="">Select</option>
-                      <option value="AITR">
-                        UrbanNest Institute of Technology and Research
-                      </option>
-                      <option value="AIMSR">
-                        UrbanNest Institute of Management Studies & Research
-                      </option>
-                      <option value="AIPER">
-                        UrbanNest Institute Of Pharmaceutical Education &
-                        Research
-                      </option>
-                      <option value="AMR">
-                        UrbanNest Faculty of Management and Research
-                      </option>
-                      <option value="AILAW">UrbanNest Institute of LAW</option>
-
-                      <option value="CDC">Career Development Cell</option>
-                      <option value="AC">Acro Care</option>
-                    </select>
-                  </div>
-
-                  {user.institution === "AIPER" && (
-                    <div className="relative mb-4">
-                      <label
-                        htmlFor="department"
-                        className="leading-7 block uppercase tracking-wide text-gray-700 text-xs font-bold">
-                        Department
-                      </label>
-
-                      <select
-                        className="w-full bg-white rounded border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out"
-                        id="department"
-                        name="department"
-                        value={user.department}
-                        onChange={handleInputs}>
-                        <option value="">Select</option>
-                        <option value="AIPER">
-                          UrbanNest Institute Of Pharmaceutical Education &
-                          Research
-                        </option>
-                      </select>
-                    </div>
-                  )}
-
-                  {user.institution === "CDC" && (
-                    <div className="relative mb-4">
-                      <label
-                        htmlFor="department"
-                        className="leading-7 block uppercase tracking-wide text-gray-700 text-xs font-bold">
-                        Department
-                      </label>
-
-                      <select
-                        className="w-full bg-white rounded border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out"
-                        id="department"
-                        name="department"
-                        value={user.department}
-                        onChange={handleInputs}>
-                        <option value="">Select</option>
-                        <option value="CDC">Career Development Cell</option>
-                        <option value="EDC">EDC</option>
-                        <option value="PLACEMENT">Placement</option>
-                        <option value="TRAINING">Training</option>
-                        <option value="IIPC">IIPC</option>
-                      </select>
-                    </div>
-                  )}
-
-                  {user.institution === "AC" && (
-                    <div className="relative mb-4">
-                      <label
-                        htmlFor="department"
-                        className="leading-7 block uppercase tracking-wide text-gray-700 text-xs font-bold">
-                        Department
-                      </label>
-
-                      <select
-                        className="w-full bg-white rounded border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out"
-                        id="department"
-                        name="department"
-                        value={user.department}
-                        onChange={handleInputs}>
-                        <option value="">Select</option>
-                        <option value="AC">Acro Care</option>
-                      </select>
-                    </div>
-                  )}
-
-                  {user.institution === "AILAW" && (
-                    <div className="relative mb-4">
-                      <label
-                        htmlFor="department"
-                        className="leading-7 block uppercase tracking-wide text-gray-700 text-xs font-bold">
-                        Department
-                      </label>
-
-                      <select
-                        className="w-full bg-white rounded border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out"
-                        id="department"
-                        name="department"
-                        value={user.department}
-                        onChange={handleInputs}>
-                        <option value="">Select</option>
-                        <option value="AILAW">
-                          UrbanNest Institute of LAW
-                        </option>
-                      </select>
-                    </div>
-                  )}
-
-                  {user.institution === "AMR" && (
-                    <div className="relative mb-4">
-                      <label
-                        htmlFor="department"
-                        className="leading-7 block uppercase tracking-wide text-gray-700 text-xs font-bold">
-                        Department
-                      </label>
-
-                      <select
-                        className="w-full bg-white rounded border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out"
-                        id="department"
-                        name="department"
-                        value={user.department}
-                        onChange={handleInputs}>
-                        <option value="">Select</option>
-                        <option value="AMR">
-                          UrbanNest Faculty of Management and Research
-                        </option>
-                      </select>
-                    </div>
-                  )}
-
-                  {user.institution === "AIMSR" && (
-                    <div className="relative mb-4">
-                      <label
-                        htmlFor="department"
-                        className="leading-7 block uppercase tracking-wide text-gray-700 text-xs font-bold">
-                        Department
-                      </label>
-
-                      <select
-                        className="w-full bg-white rounded border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out"
-                        id="department"
-                        name="department"
-                        value={user.department}
-                        onChange={handleInputs}>
-                        <option value="">Select</option>
-                        <option value="BSC">Bio Science</option>
-                        <option value="BBA">
-                          Bachelor of Business Administration
-                        </option>
-                        <option value="AIMSR">
-                          UrbanNest Institute of Management Studies & Research
-                        </option>
-                      </select>
-                    </div>
-                  )}
-
-                  {user.institution === "AITR" && (
-                    <div className="relative mb-4">
-                      <label
-                        htmlFor="department"
-                        className="leading-7 block uppercase tracking-wide text-gray-700 text-xs font-bold">
-                        Department
-                      </label>
-
-                      <select
-                        className="w-full bg-white rounded border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out"
-                        id="department"
-                        name="department"
-                        value={user.department}
-                        onChange={handleInputs}>
-                        <option value="">Select</option>
-                        <option value="CE">Civil Engineering</option>
-                        <option value="ME">Mechanical Engineering</option>
-                        <option value="EC">Electronics & Communication</option>
-                        <option value="CSE">
-                          Computer Science & Engineering
-                        </option>
-                        <option value="AIML">
-                          Artificial Intelligence and Machine Learning
-                        </option>
-                        <option value="IT">Information Technology</option>
-                        <option value="CSIT">
-                          Computer Science and Information Technology
-                        </option>
-                        <option value="FCA">
-                          Faculty of Computer Applications
-                        </option>
-
-                        <option value="HUMI">Huminities</option>
-                        <option value="CHEM">Chemistry</option>
-                      </select>
-                    </div>
-                  )} */}
-                </>
+                  <input
+                    required
+                    type="password"
+                    name="adminKey"
+                    value={user.adminKey}
+                    onChange={handleInputs}
+                    placeholder="Admin key"
+                    className="w-full border border-gray-300 rounded py-2 px-3 outline-none focus:border-indigo-500"
+                  />
+                </div>
               )}
 
 
-
-
-
-
-
-              <div className="relative mb-4">
-                <label
-                  htmlFor="password"
-                  className="leading-7 block uppercase tracking-wide text-gray-700 text-xs font-bold">
+              {/* Password */}
+              <div className="mb-4">
+                <label className="block uppercase tracking-wide text-gray-700 text-xs font-bold mb-2">
                   Password
                 </label>
+
                 <input
                   required
+                  type="password"
+                  name="password"
                   value={user.password}
                   onChange={handleInputs}
-                  type="password"
-                  id="password"
-                  name="password"
-                  placeholder="Password"
-                  className="w-full bg-white rounded border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out"
-                />
-              </div>
-              <div className="relative mb-4">
-                <label
-                  htmlFor="cpassword"
-                  className="leading-7 block uppercase tracking-wide text-gray-700 text-xs font-bold">
-                  Confirm Password
-                </label>
-                <input
-                  required
-                  value={user.cpassword}
-                  onChange={handleInputs}
-                  type="password"
-                  id="cpassword"
-                  name="cpassword"
-                  placeholder="Confirm Password"
-                  className="w-full bg-white rounded border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out"
+                  placeholder="Minimum 8 characters"
+                  className="w-full border border-gray-300 rounded py-2 px-3 outline-none focus:border-indigo-500"
                 />
               </div>
 
-              <div className="my-4">
-                <p className="text-s text-red-600	 font-bold">{authStatus}</p>
+
+              {/* Confirm Password */}
+              <div className="mb-4">
+                <label className="block uppercase tracking-wide text-gray-700 text-xs font-bold mb-2">
+                  Confirm Password
+                </label>
+
+                <input
+                  required
+                  type="password"
+                  name="cpassword"
+                  value={user.cpassword}
+                  onChange={handleInputs}
+                  placeholder="Confirm password"
+                  className="w-full border border-gray-300 rounded py-2 px-3 outline-none focus:border-indigo-500"
+                />
               </div>
-              <div className="mx-auto w-fit">
-                <div className="mx-auto">
-                  <button
-                    type="submit"
-                    onClick={PostData}
-                    className="text-white bg-indigo-600 shadow focus:shadow-outline focus:outline-none border-0 py-2 px-10 font-bold  hover:bg-indigo-800 rounded text-lg">
-                    Sign Up
-                  </button>
-                </div>
-              </div>
-              <div className="mt-4 text-center">
-                <p className="text-m">
-                  Already have an account?{" "}
-                  <Link to="/login" className="text-blue-600 hover:underline">
-                    {" "}
-                    Login
-                  </Link>
+
+
+              {authStatus && (
+                <p className="text-red-600 font-semibold text-sm mb-4">
+                  {authStatus}
                 </p>
-              </div>
+              )}
+
+
+              <button
+                type="submit"
+                className="w-full bg-indigo-600 text-white py-3 rounded font-bold hover:bg-indigo-700 transition"
+              >
+                Create Account
+              </button>
+
+
+              <p className="mt-5 text-center text-sm">
+                Already have an account?{" "}
+                <Link
+                  to="/login"
+                  className="text-blue-600 hover:underline font-semibold"
+                >
+                  Login
+                </Link>
+              </p>
+
             </form>
+
           </div>
+
         </section>
       )}
     </>
   );
 };
+
 
 export default Signup;

@@ -1,35 +1,95 @@
-
-// const jwt = require("jsonwebtoken")
-const authenticate = require("../middleware/authenticate");
-const cookieParser = require("cookie-parser");
-const authController = require('../controllers/authController');
 const express = require("express");
+
 const router = express.Router();
-const { login } = require("../controllers/authController");
 
-router.post("/login", login);
+const authenticate = require("../middleware/authenticate");
 
-module.exports = router;
-require("../DB/conn");
-// const cookieParser = require("cookie-parser");
-router.use(cookieParser());
+const marketAuthController = require("../controllers/marketAuthController");
 
-router.post('/register', authController.register);
-router.post('/signin', authController.login);
-router.post('/passwordLink', authController.passwordLink);
-router.get('/forgotPassword/:id/:token', authController.forgotPassword);
-router.post('/:id/:token', authController.setNewPassword);
-
-router.post('/emailVerificationLink', authenticate,  authController.emailVerificationLink);
-router.get('/verifyEmail/:id/:token', authController.verifyEmail);
+// Keep legacy controller temporarily for password/email features.
+const legacyAuthController = require("../controllers/authController");
 
 
-router.get('/logout/:userId', authController.logout);
-router.put('/updateProfile', authenticate, authController.updateProfile);
+// ==========================================
+// UrbanNest Authentication
+// ==========================================
+
+router.post(
+  "/register",
+  marketAuthController.register
+);
+
+router.post(
+  "/login",
+  marketAuthController.login
+);
+
+router.get(
+  "/logout",
+  authenticate,
+  marketAuthController.logout
+);
 
 
-router.get('/about', authenticate, authController.about);
-router.get('/getdata', authenticate, authController.getdata);
-router.post('/contact',authenticate, authController.contact);
+// ==========================================
+// Existing password/email functionality
+// Will be migrated later.
+// ==========================================
+
+router.post(
+  "/passwordLink",
+  legacyAuthController.passwordLink
+);
+
+router.get(
+  "/forgotPassword/:id/:token",
+  legacyAuthController.forgotPassword
+);
+
+router.post(
+  "/:id/:token",
+  legacyAuthController.setNewPassword
+);
+
+router.post(
+  "/emailVerificationLink",
+  authenticate,
+  legacyAuthController.emailVerificationLink
+);
+
+router.get(
+  "/verifyEmail/:id/:token",
+  legacyAuthController.verifyEmail
+);
+
+
+// ==========================================
+// Protected user endpoints
+// ==========================================
+
+router.put(
+  "/updateProfile",
+  authenticate,
+  legacyAuthController.updateProfile
+);
+
+router.get(
+  "/about",
+  authenticate,
+  legacyAuthController.about
+);
+
+router.get(
+  "/getdata",
+  authenticate,
+  legacyAuthController.getdata
+);
+
+router.post(
+  "/contact",
+  authenticate,
+  legacyAuthController.contact
+);
+
 
 module.exports = router;

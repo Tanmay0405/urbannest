@@ -1,95 +1,77 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const bookingSchema = new mongoose.Schema(
-  { userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'USER',
-    required: true
-  },
-  institution:{
-    type: String,
-    required: true
-  },
-    department:{
-      type: String,
-      required: true
-    },
-    eventManager: {
-      type: String,
-      required: true
-    },
-    eventName: {
-      type: String,
-      required: true
-    },
-    eventDate: {
-      type: Date,
-  
-    },
-    eventDateType: {
-      type: String,
-      required: true
-    },
-    eventStartDate: {
-      type: Date,
-    },
-    eventEndDate: {
-      type: Date,
-    },
-
-    startTime: {
-      type: Date,
-    },
-    endTime: {
-      type: Date,
-    },
-    email: {
-      type: String,
-      required: true
-    },
-    
-    bookedHallId: {
+  {
+    property: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Hall',
-      required: true
-    },
-    bookedHall: {
-      // type: mongoose.Schema.Types.Subdocument,
-
-      type: Object,
+      ref: "Property",
       required: true,
     },
 
-    bookedHallName: {
-      type: String,
-      required: true
+    buyer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "USER",
+      required: true,
     },
-    organizingClub: {
-      type: String,
-      required: true
+
+    seller: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "USER",
+      required: true,
     },
-    phoneNumber: {
+
+    bookingDate: {
+      type: Date,
+      required: true,
+    },
+
+    startDate: {
+      type: Date,
+      required: true,
+    },
+
+    endDate: {
+      type: Date,
+      required: true,
+    },
+
+    amount: {
       type: Number,
-      required: true
+      required: true,
+      min: 0,
     },
-    altNumber: {
-      type: Number
+
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected", "cancelled", "completed"],
+      default: "pending",
     },
+
+    cancellationReason: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
     rejectionReason: {
       type: String,
+      default: "",
+      trim: true,
     },
-    isApproved: {
-      default: "Request Sent",
-      type: String,
-      required: true
-    }
   },
   {
-    timestamps: true
-  }
+    timestamps: true,
+  },
 );
 
-// bookingSchema.index({ eventDate: 1 }, { expireAfterSeconds: 86400 });
-const Booking = mongoose.model('Booking', bookingSchema);
+// Helps prevent conflicting approved bookings from being missed
+bookingSchema.index({
+  property: 1,
+  startDate: 1,
+  endDate: 1,
+  status: 1,
+});
+
+const Booking = mongoose.model("Booking", bookingSchema);
 
 module.exports = Booking;

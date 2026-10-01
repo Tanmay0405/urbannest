@@ -1,671 +1,843 @@
-const express = require("express");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
 
 const User = require("../model/userSchema");
-const nodemailer = require("nodemailer")
-const jwt = require("jsonwebtoken")
 
+// ==============================
+// CONSTANTS
+// ==============================
 
+const ALLOWED_USER_TYPES = ["buyer", "seller", "admin"];
 
+const nameRegex = /^\S+(?:\s+\S+)+$/;
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const phoneRegex = /^\d{10}$/;
 
-const register = async (req, res,next) => {
+// ==============================
+// EMAIL TRANSPORTER
+// ==============================
+
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.SENDER_EMAIL,
+    pass: process.env.SENDER_PASSWORD,
+  },
+});
+
+// ==============================
+// REGISTER
+// BUYER / SELLER / ADMIN
+// ==============================
+
+const register = async (req, res, next) => {
   try {
-    
-    const { name, email, institution, department, phone, userType, adminKey, password, cpassword } = req.body;
-  // console.log(process.env.ADMIN_KEY);
-  const hodExist = await User.findOne({ department , userType: "hod" });
+    const {
+      name,
+      email,
+      institution,
+      department,
+      phone,
+      userType,
+      adminKey,
+      password,
+      cpassword,
+    } = req.body;
 
-    if (userType === "admin") {
+    const normalizedName = typeof name === "string" ? name.trim() : "";
+    const normalizedEmail =
+      typeof email === "string" ? email.trim().toLowerCase() : "";
+    const normalizedPhone = typeof phone === "string" ? phone.trim() : "";
+    const normalizedUserType =
+      typeof userType === "string" ? userType.trim().toLowerCase() : "";
 
-      if (!name || !adminKey || !email || !phone || !userType || !password || !cpassword) {
-        return res.status(422).json({ error: "Kindly complete all fields." });
-      }else if(adminKey !== process.env.ADMIN_KEY){
-        return res.status(422).json({ error: "Provided Admin Key is Invalid." });
+    // ------------------------------
+    // Required fields
+    // ------------------------------
+
+    if (
+      !normalizedName ||
+      !normalizedEmail ||
+      !normalizedPhone ||
+      !normalizedUserType ||
+      !password ||
+      !cpassword
+    ) {
+      return res.status(422).json({
+        error: "Kindly complete all required fields.",
+      });
+    }
+
+    // ------------------------------
+    // Role validation
+    // ------------------------------
+
+    if (!ALLOWED_USER_TYPES.includes(normalizedUserType)) {
+      return res.status(422).json({
+        error: "Invalid user type.",
+      });
+    }
+
+    // ------------------------------
+    // Admin validation
+    // ------------------------------
+
+    if (normalizedUserType === "admin") {
+      if (!adminKey) {
+        return res.status(422).json({
+          error: "Admin key is required.",
+        });
       }
-    }else if(userType === "director"){
-      if (!name || !institution || !email || !phone || !userType || !password || !cpassword) {
-        return res.status(422).json({ error: "Kindly complete all fields." });
-      }else if(hodExist){
-        return res.status(422).json({ error: `Hod for ${department} already exists` });
-      }
-    }else if(userType === "hod"){
-      if (!name || !institution || !department || !email || !phone || !userType || !password || !cpassword) {
-        return res.status(422).json({ error: "Kindly complete all fields." });
-      }else if(hodExist){
-        return res.status(422).json({ error: `Hod for ${department} already exists` });
-      }
-    }else{
-      if (!name || !institution || !department || !email || !phone || !userType || !password || !cpassword) {
-        return res.status(422).json({ error: "Kindly complete all fields." });
+
+      if (!process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY) {
+        return res.status(422).json({
+          error: "Provided Admin Key is invalid.",
+        });
       }
     }
 
-   
-    
-    // Regular expression to validate full name with at least two words separated by a space
-    const nameRegex = /^[\w'.]+\s[\w'.]+\s*[\w'.]*\s*[\w'.]*\s*[\w'.]*\s*[\w'.]*$/;
-  
-    if (!nameRegex.test(name)) {
-      return res.status(422).json({ error: "Kindly provide your complete name." });
+    // ------------------------------
+    // Name validation
+    // ------------------------------
+
+    if (!nameRegex.test(normalizedName)) {
+      return res.status(422).json({
+        error: "Kindly provide your complete name.",
+      });
     }
-    // Regular expression to validate email format
-    const emailRegex = /^\S+@\S+\.\S+$/;
-  
-    if (!emailRegex.test(email)) {
-      return res.status(422).json({ error: "Kindly provide a valid email address." });
+
+    // ------------------------------
+    // Email validation
+    // ------------------------------
+
+    if (!emailRegex.test(normalizedEmail)) {
+      return res.status(422).json({
+        error: "Kindly provide a valid email address.",
+      });
     }
-    
-   
+
+    // ------------------------------
     // Phone validation
-    if (phone.length !== 10) {
-      return res.status(422).json({ error: "Kindly enter a valid 10-digit phone number." });
+    // ------------------------------
+
+    if (!phoneRegex.test(normalizedPhone)) {
+      return res.status(422).json({
+        error: "Kindly enter a valid 10-digit phone number.",
+      });
     }
-  
-    // Password length validation
-    if (password.length < 7) {
-      return res.status(422).json({ error: "Password must contain at least 7 characters" });
+
+    // ------------------------------
+    // Password validation
+    // ------------------------------
+
+    if (typeof password !== "string" || password.length < 7) {
+      return res.status(422).json({
+        error: "Password must contain at least 7 characters.",
+      });
     }
-  
+
     if (password !== cpassword) {
-    return res.status(422).json({ error: "Password mismatch" });
+      return res.status(422).json({
+        error: "Password mismatch.",
+      });
     }
 
-   
-      
-      const userExist = await User.findOne({ email });
-      if (userExist) {
-        return res.status(422).json({ error: "Provide email is associated with another account." });
-      }
-       else {
-        let user
-        if (userType === "admin") {
-           user = new User({ name, email, phone, userType,adminKey,institution:"null",department:"null", password: password });
-
-        }else if (userType === "director") {
-          user = new User({ name, email, phone, userType:"faculty",institution,department:"null", password: password });
-
-       }else{
-        
-           user = new User({ name, email, phone, userType,institution,department,adminKey:"null" ,password: password });
-        }
-        // console.log(user);
-        // Perform additional validation or data processing here
-        await user.save();
-  
-        return res.status(201).json({ message: "Saved successfully" });
-      }
-    } catch (error) {
-        next(error);
-    }
-  }
-
-
-
-  // transporter for sending email
-  const transporter = nodemailer.createTransport({
-    service:"gmail",
-    auth:{
-      user:process.env.SENDER_EMAIL,
-      pass:process.env.SENDER_PASSWORD
-    }
-  })
-
-
-  
-
-  const resetPasswordTemplate = (resetLink,userName) => {
-    return `
-    
-<head>
-<meta http-equiv="Content-Type" content="text/html charset=UTF-8" />
-<link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
-<style>
-  a,
-  a:link,
-  a:visited {
-    text-decoration: none;
-    color: #00788a;
-  }
-
-  a:hover {
-    text-decoration: underline;
-  }
-
-  h2,
-  h2 a,
-  h2 a:visited,
-  h3,
-  h3 a,
-  h3 a:visited,
-  h4,
-  h5,
-  h6,
-  .t_cht {
-    color: #000 !important;
-  }
-
-  .ExternalClass p,
-  .ExternalClass span,
-  .ExternalClass font,
-  .ExternalClass td {
-    line-height: 100%;
-  }
-
-  .ExternalClass {
-    width: 100%;
-  }
-</style>
-</head>
-
-<body style="font-size: 1.25rem;font-family: 'Roboto', sans-serif;padding-left:20px;padding-right:20px;padding-top:20px;padding-bottom:20px; background-color: #FAFAFA; width: 75%; max-width: 1280px; min-width: 600px; margin-right: auto; margin-left: auto">
-<table cellpadding="12" cellspacing="0" width="100%" bgcolor="#FAFAFA" style="border-collapse: collapse;margin: auto">
-
-  <tbody>
-    <tr>
-      <td style="padding: 50px; background-color: #fff; max-width: 660px">
-        <table width="100%" style="">
-          <tr>
-            <td style="text-align:center">
-              <h1 style="font-size: 30px; color: #202225; margin-top: 0;">Hello ${userName}</h1>
-              <p style="font-size: 18px; margin-bottom: 30px; color: #202225; max-width: 60ch; margin-left: auto; margin-right: auto">A request has been received to change the password for your account</p>
-              <a href="${resetLink}"  style="background-color: #4f46e5; color: #fff; padding: 8px 24px; border-radius: 8px; border-style: solid; border-color: #4f46e5; font-size: 14px; text-decoration: none; cursor: pointer">Reset Password </a>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </tbody>
-  <tfoot>
-    <tr>
-      <td style="text-align: center; padding-top: 30px">
-        <table>
-          <tr>
-              <td>
-            <td style="text-align: left;color:#B6B6B6; font-size: 18px; padding-left: 12px">If you didn’t request this, you can ignore this email or let us know. Your password won’t change until you create a new password.</td>
-      </td>
-    </tr>
-</table>
-
-</td>
-</tr>
-</tfoot>
-</table>
-</body>
-
-
-
-    `;
-  };
-
-
-
-
-
-
-  
-  const verifyEmailTemplate = (resetLink,userFind) => {
-    return `
-    
-
-    <head>
-    <meta http-equiv="Content-Type" content="text/html charset=UTF-8" />
-    <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
-    <style>
-      a,
-      a:link,
-      a:visited {
-        text-decoration: none;
-        color: #00788a;
-      }
-    
-      a:hover {
-        text-decoration: underline;
-      }
-    
-      h2,
-      h2 a,
-      h2 a:visited,
-      h3,
-      h3 a,
-      h3 a:visited,
-      h4,
-      h5,
-      h6,
-      .t_cht {
-        color: #000 !important;
-      }
-    
-      .ExternalClass p,
-      .ExternalClass span,
-      .ExternalClass font,
-      .ExternalClass td {
-        line-height: 100%;
-      }
-    
-      .ExternalClass {
-        width: 100%;
-      }
-    </style>
-    </head>
-    
-    <body style="font-size: 1.25rem;font-family: 'Roboto', sans-serif;padding-left:20px;padding-right:20px;padding-top:20px;padding-bottom:20px; background-color: #FAFAFA; width: 75%; max-width: 1280px; min-width: 600px; margin-right: auto; margin-left: auto">
-    <table cellpadding="12" cellspacing="0" width="100%" bgcolor="#FAFAFA" style="border-collapse: collapse;margin: auto">
-
-      <tbody>
-      <tr>
-        <td style="padding: 50px; background-color: #fff; max-width: 660px">
-          <table width="100%" style="">
-            <tr>
-              <td style="text-align:center">
-                <h1 style="font-size: 30px; color: #202225; margin-top: 0;">Hello Admin</h1>
-                <p style="font-size: 18px; margin-bottom: 30px; color: #202225; max-width: 60ch; margin-left: auto; margin-right: auto">A new user has registered on our platform. Please review the user's details provided below and click the button below to verify the user.</p>
-                 <h1 style="font-size: 25px;text-align: left; color: #202225; margin-top: 0;">User Details</h1>
-                <div style="text-align: justify; margin:20px; display: flex;">
-                  
-                  <div style="flex: 1; margin-right: 20px;">
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">Full Name :</h1>
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">Email :</h1>
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">Phone :</h1>
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">Institution :</h1>
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">Department :</h1>
-                  </div>
-                  <div style="flex: 1;">
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${userFind.name}</h1>
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${userFind.email}</h1>
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${userFind.phone}</h1>
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${userFind.institution}</h1>
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${userFind.department}</h1>
-                  </div>
-                </div>
-                
-                <a href="${resetLink}" style="background-color: #4f46e5; color: #fff; padding: 8px 24px; border-radius: 8px; border-style: solid; border-color: #4f46e5; font-size: 14px; text-decoration: none; cursor: pointer">Verify User</a>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </tbody>
-
-    </table>
-    </body>
-
-
-    `;
-  };
-
-const passwordLink = async (req, res,next) => {
-  // console.log(req.body);
-  // res.json({message:"login success"})
-  try {
-
-    const { email } = req.body;
-    if (!email ) {
-      return res.status(400).json({ error: "Please Enter yout Email" });
-    }
-
-    const userFind = await User.findOne({ email });
-
-    if (userFind) {
-        const token = jwt.sign({_id:userFind._id},process.env.SECRET_KEY,{
-          expiresIn:"300s"
-        })
-        
-        const setUserToken = await User.findByIdAndUpdate({_id:userFind._id},{verifyToken:token},{new:true})
-        
-
-        if (setUserToken) {
-          const mailOptions = {
-            from:process.env.SENDER_EMAIL,
-            to:email,
-            subject:"Book It Reset Password",
-            html:resetPasswordTemplate((`${process.env.CLIENT_URL}/forgotPassword/${userFind.id}/${setUserToken.verifyToken}`),userFind.name)
-            // text:`This link is valid for 5 minutes \n ${process.env.CLIENT_URL}/forgotPassword/${userFind.id}/${setUserToken.verifyToken} \n click on above link`
-          }
-        
-          transporter.sendMail(mailOptions,(error,info)=>
-          {
-            if (error) {
-              console.log(error);
-              res.status(401).json({status:401,message:"Email not Send"})
-            }else{
-              console.log("Email Sent ",info.response);
-              res.status(201).json({status:201,message:"Email Send Successfully"})
-            }
-          })
-        }
-
-
-
-        // console.log(setUserToken);
-
-    } else {
-      res.status(400).json({ error: "Invalid Credentials" });
-    }
-  } catch (error) {
-    res.status(401).json({status:401,message:"Invalid User"})
-      next(error);
-  }
-}
-
-
-
-const forgotPassword = async (req, res,next) => {
-  const {id,token} = req.params
-  try {
-    const validUser = await User.findOne({_id:id,verifyToken:token})
-
-      const verifyToken = jwt.verify(token,process.env.SECRET_KEY);
-
-      if (validUser && verifyToken._id) {
-        res.status(201).json({status:201,validUser})
-      }else{
-        res.status(401).json({status:401,message:"user not exist"})
-      }
-
-  //  // console.log(validUser); 
-  } catch (error) {
-    res.status(401).json({status:401,error})
-    
-  }
-   
-  
-}
-
-
-const setNewPassword = async (req, res,next) => {
-  const {id,token} = req.params
-  const {password,cpassword} = req.body
-  
-  try {
-    if (password.length < 7) {
-      return res.status(422).json({ error: "Password must contain at least 7 characters" });
-    }
-  
-    if (password !== cpassword) {
-      return res.status(422).json({ error: "Password and confirm password do not match" });
-    }
-
-    const validUser = await User.findOne({_id:id,verifyToken:token})
-
-      const verifyToken = jwt.verify(token,process.env.SECRET_KEY);
-
-      if (validUser && verifyToken._id) {
-
-        
-        const newPassword =await  bcrypt.hash(password,12)
-        const setnewPassword = await User.findByIdAndUpdate({_id:id},{password:newPassword})
-
-        setnewPassword.save()
-
-        res.status(201).json({status:201,setnewPassword})
-      }else{
-        res.status(401).json({status:401,message:"user not exist"})
-      }
-
-  //  // console.log(validUser); 
-  } catch (error) {
-    res.status(401).json({status:401,error})
-    
-  }
-   
-  
-}
-
-
-
-
-
-
-
-
-
-
-
-const emailVerificationLink = async (req, res,next) => {
-  // console.log(req.body);
-  // res.json({message:"login success"})
-  try {
-
-    const { email } = req.body;
-
-    if (!email ) {
-      return res.status(400).json({ error: "Please Enter yout Email" });
-    }
-
-    const userFind = await User.findOne({ email });
-
-    if (userFind) {
-        const token = jwt.sign({_id:userFind._id},process.env.SECRET_KEY,{
-          expiresIn:"1d"
-        })
-        
-        const setUserToken = await User.findByIdAndUpdate({_id:userFind._id},{verifyToken:token},{new:true})
-        
-
-        if (setUserToken) {
-          const mailOptions = {
-            from:process.env.SENDER_EMAIL,
-            // to:email,
-            //send mail to admin to verify new user
-            to:process.env.ADMIN_EMAIL,
-            subject:"Book It User Verification",
-            html:verifyEmailTemplate((`${process.env.CLIENT_URL}/verifyEmail/${userFind.id}/${setUserToken.verifyToken}`),userFind) 
-            // text:`This link is valid for 5 minutes \n ${process.env.CLIENT_URL}/forgotPassword/${userFind.id}/${setUserToken.verifyToken} \n click on above link`
-          }
-        
-          transporter.sendMail(mailOptions,(error,info)=>
-          {
-            if (error) {
-              // console.log(error);
-              res.status(401).json({status:401,message:"Email not Send"})
-            }else{
-              // console.log("Email Sent ",info.response);
-              res.status(201).json({status:201,message:"Email Send Successfully"})
-            }
-          })
-        }
-
-
-
-        // console.log(setUserToken);
-
-    } else {
-      res.status(400).json({ error: "Invalid Credentials" });
-    }
-  } catch (error) {
-    res.status(401).json({status:401,message:"Invalid User"})
-      next(error);
-  }
-}
-
-
-
-
-
-const verifyEmail = async (req, res,next) => {
-  const {id,token} = req.params
-  try {
-      
-    const validUser = await User.findOne({_id:id,verifyToken:token})
-
-    const verifyToken = jwt.verify(token,process.env.SECRET_KEY);
-
-
-
-      if (validUser && verifyToken._id) {
-        const setUserToken = await User.findByIdAndUpdate({_id:validUser._id},{emailVerified:true})
-        setUserToken.save()
-        res.status(201).json({status:201,validUser,message:"Verify successfully"})
-      }
-      else{
-        res.status(401).json({status:401,error:"user not exist"})
-      }
-      // console.log(setUserToken);
-    
-     
-  //  // console.log(validUser); 
-  } catch (error) {
-    // res.status(401).json({status:422,error})
-    next(error);
-
-  }
-}
-
-
-
-
-
-
-
-const login = async (req, res, next) => {
-  try {
-    console.log("LOGIN API HIT"); // 🔥 add this
-
-    const { email, password } = req.body;
-
-    console.log("Email:", email);
-    console.log("Password:", password);
-
-    const userLogin = await User.findOne({ email });
-
-    console.log("User found:", userLogin); // 🔥
-
-    if (!userLogin) {
-      return res.status(400).json({ error: "Invalid Credentials" });
-    }
-
-    const isMatch = await bcrypt.compare(password, userLogin.password);
-
-    console.log("Password match:", isMatch); // 🔥
-
-    if (!isMatch) {
-      return res.status(400).json({ error: "Invalid Credentials" });
-    }
-
-    const token = await userLogin.generateAuthToken();
-
-    res.status(200).json({
-      userLogin,
-      token,
-      message: "User logged in successfully"
+    // ------------------------------
+    // Existing user
+    // ------------------------------
+
+    const userExist = await User.findOne({
+      email: normalizedEmail,
     });
 
+    if (userExist) {
+      return res.status(422).json({
+        error: "Provided email is associated with another account.",
+      });
+    }
+
+    // ------------------------------
+    // Create user
+    // ------------------------------
+
+    const user = new User({
+      name: normalizedName,
+      email: normalizedEmail,
+      phone: normalizedPhone,
+      userType: normalizedUserType,
+
+      institution:
+        typeof institution === "string" && institution.trim()
+          ? institution.trim()
+          : "N/A",
+
+      department:
+        typeof department === "string" && department.trim()
+          ? department.trim()
+          : "N/A",
+
+      adminKey: normalizedUserType === "admin" ? adminKey : null,
+
+      password,
+    });
+
+    await user.save();
+
+    return res.status(201).json({
+      success: true,
+      message: "Account created successfully.",
+    });
   } catch (error) {
-    console.log("LOGIN ERROR:", error); // 🔥 VERY IMPORTANT
+    console.error("REGISTER ERROR:", error);
     next(error);
   }
 };
 
+// ==============================
+// PASSWORD RESET EMAIL TEMPLATE
+// ==============================
 
+const resetPasswordTemplate = (resetLink, userName) => {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+        <title>Reset your UrbanNest password</title>
+      </head>
 
-  const about = async (req, res) => {
-    // console.log("about page");
-    res.send(req.rootUser);
-  }
-  
-  //get user data for contact us and home page
-  const getdata = async (req, res) => {
-        // console.log("getdata page");
-        // console.log(req.rootUser);
-    res.send(req.rootUser);
-  }
+      <body style="
+        margin:0;
+        padding:30px;
+        background:#f8fafc;
+        font-family:Arial,sans-serif;
+      ">
+        <div style="
+          max-width:600px;
+          margin:auto;
+          background:#ffffff;
+          padding:40px;
+          border-radius:12px;
+        ">
+          <h1 style="color:#111827;">
+            Hello ${userName}
+          </h1>
 
+          <p style="color:#4b5563;font-size:16px;">
+            A request has been received to reset your UrbanNest password.
+          </p>
 
+          <p style="margin:30px 0;">
+            <a
+              href="${resetLink}"
+              style="
+                display:inline-block;
+                background:#4f46e5;
+                color:#ffffff;
+                padding:12px 24px;
+                border-radius:8px;
+                text-decoration:none;
+                font-weight:bold;
+              "
+            >
+              Reset Password
+            </a>
+          </p>
 
+          <p style="color:#6b7280;font-size:14px;">
+            If you did not request this, you can safely ignore this email.
+          </p>
+        </div>
+      </body>
+    </html>
+  `;
+};
 
+// ==============================
+// USER VERIFICATION EMAIL
+// ==============================
 
-  const updateProfile = async (req, res) => {
+const verifyEmailTemplate = (verificationLink, userFind) => {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+        <title>UrbanNest user verification</title>
+      </head>
+
+      <body style="
+        margin:0;
+        padding:30px;
+        background:#f8fafc;
+        font-family:Arial,sans-serif;
+      ">
+        <div style="
+          max-width:650px;
+          margin:auto;
+          background:#ffffff;
+          padding:40px;
+          border-radius:12px;
+        ">
+          <h1 style="color:#111827;">
+            UrbanNest User Verification
+          </h1>
+
+          <p style="color:#4b5563;font-size:16px;">
+            A new user has registered on UrbanNest.
+          </p>
+
+          <h2 style="color:#111827;">User Details</h2>
+
+          <p>
+            <strong>Name:</strong> ${userFind.name}
+          </p>
+
+          <p>
+            <strong>Email:</strong> ${userFind.email}
+          </p>
+
+          <p>
+            <strong>Phone:</strong> ${userFind.phone}
+          </p>
+
+          <p>
+            <strong>Role:</strong> ${userFind.userType}
+          </p>
+
+          <p>
+            <strong>Institution:</strong> ${userFind.institution}
+          </p>
+
+          <p>
+            <strong>Department:</strong> ${userFind.department}
+          </p>
+
+          <p style="margin-top:30px;">
+            <a
+              href="${verificationLink}"
+              style="
+                display:inline-block;
+                background:#4f46e5;
+                color:#ffffff;
+                padding:12px 24px;
+                border-radius:8px;
+                text-decoration:none;
+                font-weight:bold;
+              "
+            >
+              Verify User
+            </a>
+          </p>
+        </div>
+      </body>
+    </html>
+  `;
+};
+
+// ==============================
+// PASSWORD RESET REQUEST
+// ==============================
+
+const passwordLink = async (req, res, next) => {
+  try {
+    const email =
+      typeof req.body.email === "string"
+        ? req.body.email.trim().toLowerCase()
+        : "";
+
+    if (!email) {
+      return res.status(400).json({
+        error: "Please enter your email.",
+      });
+    }
+
+    const userFind = await User.findOne({ email });
+
+    if (!userFind) {
+      return res.status(400).json({
+        error: "No account was found with this email.",
+      });
+    }
+
+    const token = jwt.sign({ _id: userFind._id }, process.env.SECRET_KEY, {
+      expiresIn: "300s",
+    });
+
+    userFind.verifyToken = token;
+    await userFind.save();
+
+    const resetLink = `${process.env.CLIENT_URL}/forgotPassword/${userFind._id}/${token}`;
+
+    const mailOptions = {
+      from: process.env.SENDER_EMAIL,
+      to: userFind.email,
+      subject: "UrbanNest Password Reset",
+      html: resetPasswordTemplate(resetLink, userFind.name),
+    };
+
     try {
-      const userId = req.rootUser._id;  // Get the user's ID from the request
-      console.log(userId);
-      const { name , facultyType, phone} = req.body;  // Extract the fields to be updated
-  
+      await transporter.sendMail(mailOptions);
 
-      if (!name  || !phone ) {
-        return res.status(422).json({ error: "Kindly fill all fields." });
-      }
-       // Regular expression to validate full name with at least two words separated by a space
-    const nameRegex = /^[\w'.]+\s[\w'.]+\s*[\w'.]*\s*[\w'.]*\s*[\w'.]*\s*[\w'.]*$/;
-  
-    if (!nameRegex.test(name)) {
-      return res.status(422).json({ error: "Kindly provide your complete name." });
+      return res.status(200).json({
+        success: true,
+        message: "Password reset email sent successfully.",
+      });
+    } catch (mailError) {
+      console.error("PASSWORD RESET EMAIL ERROR:", mailError);
+
+      return res.status(500).json({
+        success: false,
+        message: "Unable to send password reset email.",
+      });
     }
-   
-    // Phone validation
-  
+  } catch (error) {
+    console.error("PASSWORD LINK ERROR:", error);
+    next(error);
+  }
+};
 
-    if (!/^\d{10}$/.test(phone)) {
-      return res.status(422).json({ error: "Kindly enter a valid 10-digit phone number." });
+// ==============================
+// VALIDATE PASSWORD RESET TOKEN
+// ==============================
+
+const forgotPassword = async (req, res, next) => {
+  try {
+    const { id, token } = req.params;
+
+    const validUser = await User.findOne({
+      _id: id,
+      verifyToken: token,
+    });
+
+    if (!validUser) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired password reset link.",
+      });
     }
-  
-      // Validate input data if necessary (e.g., check phone number format)
-  
-      // Update the user data in the database
-      const updatedUser = await User.findByIdAndUpdate(
-        userId,
-        { name , facultyType, phone},
-        { new: true }
-      );
-  
-      // Send the updated user data to the frontend
-      res.status(200).send(updatedUser);
-    } catch (error) {
-      console.error("Error updating user profile:", error);
-      res.status(500).send({ message: "Error updating profile." });
+
+    jwt.verify(token, process.env.SECRET_KEY);
+
+    return res.status(200).json({
+      success: true,
+      validUser,
+    });
+  } catch (error) {
+    console.error("FORGOT PASSWORD ERROR:", error);
+
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired password reset link.",
+    });
+  }
+};
+
+// ==============================
+// SET NEW PASSWORD
+// ==============================
+
+const setNewPassword = async (req, res, next) => {
+  try {
+    const { id, token } = req.params;
+    const { password, cpassword } = req.body;
+
+    if (typeof password !== "string" || password.length < 7) {
+      return res.status(422).json({
+        error: "Password must contain at least 7 characters.",
+      });
     }
-  };
-  
 
+    if (password !== cpassword) {
+      return res.status(422).json({
+        error: "Password and confirm password do not match.",
+      });
+    }
 
-  const contact = async (req, res,next) => {
+    const validUser = await User.findOne({
+      _id: id,
+      verifyToken: token,
+    });
+
+    if (!validUser) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired password reset link.",
+      });
+    }
+
+    jwt.verify(token, process.env.SECRET_KEY);
+
+    validUser.password = password;
+    validUser.verifyToken = undefined;
+
+    await validUser.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Password updated successfully.",
+    });
+  } catch (error) {
+    console.error("SET NEW PASSWORD ERROR:", error);
+
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired password reset link.",
+    });
+  }
+};
+
+// ==============================
+// SEND EMAIL VERIFICATION LINK
+// ==============================
+
+const emailVerificationLink = async (req, res, next) => {
+  try {
+    const email =
+      typeof req.body.email === "string"
+        ? req.body.email.trim().toLowerCase()
+        : "";
+
+    if (!email) {
+      return res.status(400).json({
+        error: "Please enter your email.",
+      });
+    }
+
+    const userFind = await User.findOne({ email });
+
+    if (!userFind) {
+      return res.status(400).json({
+        error: "Account not found.",
+      });
+    }
+
+    const token = jwt.sign({ _id: userFind._id }, process.env.SECRET_KEY, {
+      expiresIn: "1d",
+    });
+
+    userFind.verifyToken = token;
+    await userFind.save();
+
+    const verificationLink = `${process.env.CLIENT_URL}/verifyEmail/${userFind._id}/${token}`;
+
+    const mailOptions = {
+      from: process.env.SENDER_EMAIL,
+      to: process.env.ADMIN_EMAIL || userFind.email,
+      subject: "UrbanNest User Verification",
+      html: verifyEmailTemplate(verificationLink, userFind),
+    };
+
     try {
-      const { name, email,department, phone, message } = req.body;
-  
-      if (!name || !department || !email || !phone || !message) {
-        // console.log("error in contact form");
-        return res.json({ error: "Plz fill form correctly" });
-      }
-  
-  const userContact = await  User.findOne({_id:req.userID})
-  
-  if (userContact){
-    // console.log("user find");
-  
-    const userMessage = await userContact.addMessage(name,email,phone,message)
-    await userContact.save();
-  
-    res.status(201).json({message:"message created"})
-  
-  }
-  
-    } catch (error) {
-        next(error);
-    }
-  }
-  
-  
+      await transporter.sendMail(mailOptions);
 
-  
-  const logout = async (req, res, next) => {
-    // const userId = req.userId; // get the userId from the request header
-    try {
-      const userId = req.params.userId;
-      // remove the user token from the database
-      const user = await User.findByIdAndUpdate(
-        {_id: userId},
-        { $unset: { tokens: 1 } },
-        { new: true }
-      );
-  
-      // clear the cookie
-      // res.clearCookie("jwtoken",{path:"/"});
+      return res.status(200).json({
+        success: true,
+        message: "Verification email sent successfully.",
+      });
+    } catch (mailError) {
+      console.error("VERIFICATION EMAIL ERROR:", mailError);
 
-  
-      res.status(200).send("User logged out successfully");
-    } catch (error) {
-      next(error);
-      res.status(500).json({ error: "Internal server error" });
+      return res.status(500).json({
+        success: false,
+        message: "Unable to send verification email.",
+      });
     }
+  } catch (error) {
+    console.error("EMAIL VERIFICATION LINK ERROR:", error);
+    next(error);
   }
-  
-module.exports = { register, login, about, getdata,updateProfile, contact ,logout,passwordLink,forgotPassword,setNewPassword,emailVerificationLink,verifyEmail};
+};
+
+// ==============================
+// VERIFY EMAIL
+// ==============================
+
+const verifyEmail = async (req, res, next) => {
+  try {
+    const { id, token } = req.params;
+
+    const validUser = await User.findOne({
+      _id: id,
+      verifyToken: token,
+    });
+
+    if (!validUser) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired verification link.",
+      });
+    }
+
+    jwt.verify(token, process.env.SECRET_KEY);
+
+    validUser.emailVerified = true;
+    validUser.verifyToken = undefined;
+
+    await validUser.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Email verified successfully.",
+    });
+  } catch (error) {
+    console.error("VERIFY EMAIL ERROR:", error);
+
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired verification link.",
+    });
+  }
+};
+
+// ==============================
+// LOGIN
+// ==============================
+
+const login = async (req, res, next) => {
+  try {
+    const email =
+      typeof req.body.email === "string"
+        ? req.body.email.trim().toLowerCase()
+        : "";
+
+    const { password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        error: "Email and password are required.",
+      });
+    }
+
+    const userLogin = await User.findOne({
+      email,
+    });
+
+    if (!userLogin) {
+      return res.status(400).json({
+        error: "Invalid Credentials",
+      });
+    }
+
+    const isMatch = await bcrypt.compare(password, userLogin.password);
+
+    if (!isMatch) {
+      return res.status(400).json({
+        error: "Invalid Credentials",
+      });
+    }
+
+    // Reject legacy roles that may still exist in the database.
+    if (!ALLOWED_USER_TYPES.includes(userLogin.userType)) {
+      return res.status(403).json({
+        error:
+          "This account uses an unsupported legacy role. Please contact the administrator.",
+      });
+    }
+
+    const token = await userLogin.generateAuthToken();
+
+    return res.status(200).json({
+      userLogin,
+      token,
+      message: "User logged in successfully",
+    });
+  } catch (error) {
+    console.error("LOGIN ERROR:", error);
+    next(error);
+  }
+};
+
+// ==============================
+// CURRENT USER
+// ==============================
+
+const about = async (req, res) => {
+  return res.status(200).json(req.rootUser);
+};
+
+const getdata = async (req, res) => {
+  return res.status(200).json(req.rootUser);
+};
+
+// ==============================
+// UPDATE PROFILE
+// ==============================
+
+const updateProfile = async (req, res) => {
+  try {
+    if (!req.rootUser) {
+      return res.status(401).json({
+        error: "Authentication required.",
+      });
+    }
+
+    const { name, phone } = req.body;
+
+    if (!name || !phone) {
+      return res.status(422).json({
+        error: "Kindly fill all fields.",
+      });
+    }
+
+    const normalizedName = name.trim();
+    const normalizedPhone = phone.trim();
+
+    if (!nameRegex.test(normalizedName)) {
+      return res.status(422).json({
+        error: "Kindly provide your complete name.",
+      });
+    }
+
+    if (!phoneRegex.test(normalizedPhone)) {
+      return res.status(422).json({
+        error: "Kindly enter a valid 10-digit phone number.",
+      });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.rootUser._id,
+      {
+        name: normalizedName,
+        phone: normalizedPhone,
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        error: "User not found.",
+      });
+    }
+
+    return res.status(200).json(updatedUser);
+  } catch (error) {
+    console.error("UPDATE PROFILE ERROR:", error);
+
+    return res.status(500).json({
+      message: "Error updating profile.",
+    });
+  }
+};
+
+// ==============================
+// CONTACT
+// ==============================
+
+const contact = async (req, res, next) => {
+  try {
+    const { name, email, phone, message } = req.body;
+
+    if (!name || !email || !phone || !message) {
+      return res.status(422).json({
+        error: "Please fill all contact form fields correctly.",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!emailRegex.test(normalizedEmail)) {
+      return res.status(422).json({
+        error: "Please provide a valid email address.",
+      });
+    }
+
+    if (!phoneRegex.test(phone.trim())) {
+      return res.status(422).json({
+        error: "Please provide a valid 10-digit phone number.",
+      });
+    }
+
+    if (!process.env.ADMIN_EMAIL) {
+      return res.status(500).json({
+        error: "Contact service is not configured.",
+      });
+    }
+
+    const mailOptions = {
+      from: process.env.SENDER_EMAIL,
+      to: process.env.ADMIN_EMAIL,
+      replyTo: normalizedEmail,
+      subject: "UrbanNest Contact Request",
+      text: `
+Name: ${name}
+Email: ${normalizedEmail}
+Phone: ${phone}
+
+Message:
+${message}
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    return res.status(201).json({
+      success: true,
+      message: "Message sent successfully.",
+    });
+  } catch (error) {
+    console.error("CONTACT ERROR:", error);
+    next(error);
+  }
+};
+
+// ==============================
+// LOGOUT
+// ==============================
+
+const logout = async (req, res, next) => {
+  try {
+    const userId = req.rootUser?._id || req.params.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        error: "Authentication required.",
+      });
+    }
+
+    const update = req.token
+      ? {
+          $pull: {
+            tokens: {
+              token: req.token,
+            },
+          },
+        }
+      : {
+          $unset: {
+            tokens: 1,
+          },
+        };
+
+    await User.findByIdAndUpdate(userId, update, {
+      new: true,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "User logged out successfully.",
+    });
+  } catch (error) {
+    console.error("LOGOUT ERROR:", error);
+    next(error);
+  }
+};
+
+module.exports = {
+  register,
+  login,
+  about,
+  getdata,
+  updateProfile,
+  contact,
+  logout,
+  passwordLink,
+  forgotPassword,
+  setNewPassword,
+  emailVerificationLink,
+  verifyEmail,
+};

@@ -1,117 +1,202 @@
-import React, { useState, useContext } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, {
+  useContext,
+  useState,
+} from "react";
+
+import {
+  Link,
+  useNavigate,
+} from "react-router-dom";
+
 import axios from "axios";
-import { UserContext } from "../../App";
+
+import {
+  UserContext,
+} from "../../App";
+
 import LoadingSpinner from "../LoadingSpinner";
-import { toast } from "react-toastify";
+
+import {
+  toast,
+} from "react-toastify";
+
+
 const Login = () => {
   const { dispatch } = useContext(UserContext);
-  const [isLoading, setIsLoading] = useState(false);
+
   const navigate = useNavigate();
 
+  const [isLoading, setIsLoading] = useState(false);
+
   const [email, setEmail] = useState("");
+
   const [password, setPassword] = useState("");
+
   const [authStatus, setAuthStatus] = useState("");
-  
+
 
   const loginUser = async (e) => {
-    if (e) e.preventDefault();
+    e.preventDefault();
 
-    console.log("LOGIN FUNCTION RUNNING");
-
+    setAuthStatus("");
     setIsLoading(true);
 
+
     try {
-      const response = await axios.post("http://localhost:5000/login", {
-        email,
-        password,
+      const response = await axios.post(
+        `${process.env.REACT_APP_SERVER_URL}/login`,
+        {
+          email,
+          password,
+        }
+      );
+
+
+      const {
+        token,
+        userLogin,
+      } = response.data;
+
+
+      const userType =
+        userLogin.userType.toLowerCase();
+
+
+      // Store authentication information
+      localStorage.setItem(
+        "jwtoken",
+        token
+      );
+
+      localStorage.setItem(
+        "user",
+        JSON.stringify(userLogin)
+      );
+
+      localStorage.setItem(
+        "userId",
+        userLogin._id
+      );
+
+      localStorage.setItem(
+        "userType",
+        userType
+      );
+
+      localStorage.setItem(
+        "userEmail",
+        userLogin.email
+      );
+
+
+      // Update global state
+      dispatch({
+        type: "USER",
+        payload: userLogin,
       });
 
-      const data = response.data;
+      dispatch({
+        type: "USER_TYPE",
+        payload: userType,
+      });
 
-      console.log("SUCCESS:", data);
-      const normalizedType = data.userLogin.userType.toLowerCase();
 
-      // ✅ store data
-      localStorage.setItem("jwtoken", data.token);
-      localStorage.setItem("user", JSON.stringify(data.userLogin));
-      localStorage.setItem("userId", data.userLogin._id);
-      localStorage.setItem("userType", normalizedType);
-      localStorage.setItem("userEmail", data.userLogin.email);
-      
+      toast.success("Login successful.");
 
-      // ✅ update state
-      dispatch({ type: "USER", payload: data.userLogin });
-      dispatch({ type: "USER_TYPE", payload: normalizedType });
-
-      toast.success("Login Successful");
-
-      setIsLoading(false);
       navigate("/dashboard");
+
     } catch (error) {
+      console.error("LOGIN ERROR:", error);
+
+      const message =
+        error.response?.data?.error ||
+        "Unable to login.";
+
+      setAuthStatus(message);
+
+      toast.error(message);
+
+    } finally {
       setIsLoading(false);
-
-      if (error.response) {
-        setAuthStatus(error.response.data.error);
-      } else {
-        setAuthStatus("Server error");
-      }
-
-      console.log("ERROR:", error.response || error);
     }
   };
+
 
   return (
     <>
       {isLoading ? (
         <LoadingSpinner />
       ) : (
-        <section className="min-h-screen flex items-center justify-center">
-          <div className="bg-white p-8 shadow-lg rounded-lg w-80">
-            <h2 className="text-2xl mb-4 font-bold">Sign In</h2>
+        <section className="min-h-screen flex items-center justify-center px-4">
 
-            <input
-              type="email"
-              placeholder="Email"
-              className="border p-2 mb-3 w-full"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
+          <div className="bg-white p-8 shadow-lg rounded-lg w-full max-w-sm">
 
-            <input
-              type="password"
-              placeholder="Password"
-              className="border p-2 mb-3 w-full"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <h2 className="text-2xl mb-6 font-bold">
+              Sign In
+            </h2>
 
-            {authStatus && (
-              <p className="text-red-500 text-sm mb-2">{authStatus}</p>
-            )}
 
-            <button
-              type="button"
-              onClick={(e) => {
-                console.log("BUTTON CLICKED");
-                loginUser(e); // 🔥 THIS WAS MISSING
-              }}
-              className="bg-indigo-600 text-white px-4 py-2 rounded w-full"
-            >
-              Login
-            </button>
+            <form onSubmit={loginUser}>
 
-            <p className="mt-4 text-sm">
+              <input
+                required
+                type="email"
+                placeholder="Email"
+                className="border p-3 mb-4 w-full rounded"
+                value={email}
+                onChange={(e) =>
+                  setEmail(e.target.value)
+                }
+              />
+
+
+              <input
+                required
+                type="password"
+                placeholder="Password"
+                className="border p-3 mb-4 w-full rounded"
+                value={password}
+                onChange={(e) =>
+                  setPassword(e.target.value)
+                }
+              />
+
+
+              {authStatus && (
+                <p className="text-red-500 text-sm mb-3">
+                  {authStatus}
+                </p>
+              )}
+
+
+              <button
+                type="submit"
+                className="bg-indigo-600 text-white px-4 py-3 rounded w-full font-semibold hover:bg-indigo-700"
+              >
+                Login
+              </button>
+
+            </form>
+
+
+            <p className="mt-5 text-sm">
               Don't have an account?{" "}
-              <Link to="/signup" className="text-blue-600">
+
+              <Link
+                to="/signup"
+                className="text-blue-600 font-semibold"
+              >
                 Signup
               </Link>
             </p>
+
           </div>
+
         </section>
       )}
     </>
   );
 };
+
 
 export default Login;

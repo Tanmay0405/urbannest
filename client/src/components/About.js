@@ -91,37 +91,7 @@ const AboutUpdateForm = () => {
     setUserData({ ...userData, [name]: value });
   };
 
-  const callAboutPage = async () => {
-    try {
-      const response = await axios.get(
-        `${process.env.REACT_APP_SERVER_URL}/about`,
-        {
-          withCredentials: true,
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-        }
-      );
-      const data = response.data;
-      // console.log(data);
-      setUserData(data);
-      setOriginalData(data);
-      setIsLoading(false);
-      if (response.status !== 200) {
-        throw new Error(response.error);
-      }
-    } catch (error) {
-      if (error.response.status === 401) {
-        toast.warn("Unauthorized Access! Please Login!", {
-          toastId: "Unauthorized",
-        });
-        navigate("/login");
-      }else {
-    console.log("Error:", error.message);
-  }
-    }
-  };
+  
 
   const updateProfile = async (e) => {
     e.preventDefault();

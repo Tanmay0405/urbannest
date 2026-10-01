@@ -1,31 +1,69 @@
-const storedUser = localStorage.getItem("user");
-const storedUserType = localStorage.getItem("userType");
+const getStoredUser = () => {
+  try {
+    const storedUser = localStorage.getItem("user");
 
-// set the initial state to the stored value, or to null if no value is found
-//consolelog(storedUser);
-// const jwtoken = document.cookie.split(";").find(cookie => cookie.trim().startsWith("jwtoken="));
+    if (!storedUser) {
+      return null;
+    }
 
-// const jwtoken = Cookies.get("jwtoken");
-const jwtoken = localStorage.getItem("jwtoken");
+    return JSON.parse(storedUser);
+  } catch (error) {
+    console.error("Unable to restore stored user:", error);
 
-//consolelog(jwtoken);
-export const initialState = {
-  user: storedUser ? JSON.parse(storedUser) : null,
-  userType: storedUserType || null,
+    localStorage.removeItem("user");
+
+    return null;
+  }
 };
 
-// export const initialState = storedUser ? { user: JSON.parse(storedUser), userType:storedUserType} : { user: null, userType: null };
+const storedUser = getStoredUser();
+
+const storedUserType = localStorage.getItem("userType");
+const storedToken = localStorage.getItem("jwtoken");
+
+const isAuthenticated = Boolean(storedToken && storedUser);
+
+export const initialState = {
+  user: isAuthenticated ? storedUser : null,
+  userType: isAuthenticated ? storedUserType : null,
+};
 
 export const reducer = (state, action) => {
   switch (action.type) {
     case "USER":
-      // store the user information in localStorage
+      if (!action.payload) {
+        localStorage.removeItem("user");
+
+        return {
+          ...state,
+          user: null,
+        };
+      }
+
       localStorage.setItem("user", JSON.stringify(action.payload));
-      return { ...state, user: action.payload };
+
+      return {
+        ...state,
+        user: action.payload,
+      };
+
     case "USER_TYPE":
-      // store the user type in localStorage
+      if (!action.payload) {
+        localStorage.removeItem("userType");
+
+        return {
+          ...state,
+          userType: null,
+        };
+      }
+
       localStorage.setItem("userType", action.payload);
-      return { ...state, userType: action.payload };
+
+      return {
+        ...state,
+        userType: action.payload,
+      };
+
     default:
       return state;
   }

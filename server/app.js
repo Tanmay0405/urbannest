@@ -1,35 +1,45 @@
 const express = require("express");
+
 require("dotenv").config();
 
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-
 const connectDB = require("./DB/conn");
 
 const app = express();
 
-// Middlewares
 app.use(express.json());
+
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  }),
+);
+
 app.use(cookieParser());
 
-
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
-
-// DB + Models
 connectDB();
+
 require("./model/userSchema");
 require("./model/hallSchema");
 require("./model/bookingSchema");
+require("./model/propertySchema");
 
-// Routes
+// IMPORTANT:
+// favoriteRoutes must come before authRoutes.
+// authRoutes contains the legacy POST "/:id/:token"
+// password-reset route, which previously intercepted
+// POST /favorites/:propertyId.
+app.use(require("./router/favoriteRoutes"));
+
 app.use(require("./router/authRoutes"));
 app.use(require("./router/bookingRoutes"));
 app.use(require("./router/hallRoutes"));
 
-// Port
+const propertyRoutes = require("./router/propertyRoutes");
+app.use("/", propertyRoutes);
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {

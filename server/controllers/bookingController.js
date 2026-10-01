@@ -1,707 +1,562 @@
-const Booking = require('../model/bookingSchema');
-const Hall = require('../model/hallSchema');
-const User = require('../model/userSchema');
-const nodemailer = require("nodemailer");
+const mongoose = require("mongoose");
 
+const Booking = require("../model/bookingSchema");
+const Property = require("../model/propertySchema");
+const User = require("../model/userSchema");
 
+// ==========================================
+// Helpers
+// ==========================================
 
-
-
- // transporter for sending email
- const transporter = nodemailer.createTransport({
-  service:"gmail",
-  auth:{
-    user:process.env.SENDER_EMAIL,
-    pass:process.env.SENDER_PASSWORD
-  }
-})
-
-const generateBookingEmailTemplate = (eventName, bookedHallName, organizingClub, institution, department, bookingId) => {
-  return `
-
-
-  <head>
-  <meta http-equiv="Content-Type" content="text/html charset=UTF-8" />
-  <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
-  <style>
-    a,
-    a:link,
-    a:visited {
-      text-decoration: none;
-      color: #00788a;
-    }
-  
-    a:hover {
-      text-decoration: underline;
-    }
-  
-    h2,
-    h2 a,
-    h2 a:visited,
-    h3,
-    h3 a,
-    h3 a:visited,
-    h4,
-    h5,
-    h6,
-    .t_cht {
-      color: #000 !important;
-    }
-  
-    .ExternalClass p,
-    .ExternalClass span,
-    .ExternalClass font,
-    .ExternalClass td {
-      line-height: 100%;
-    }
-  
-    .ExternalClass {
-      width: 100%;
-    }
-  </style>
-  </head>
-  
-  <body style="font-size: 1.25rem;font-family: 'Roboto', sans-serif;padding-left:20px;padding-right:20px;padding-top:20px;padding-bottom:20px; background-color: #FAFAFA; width: 75%; max-width: 1280px; min-width: 600px; margin-right: auto; margin-left: auto">
-  <table cellpadding="12" cellspacing="0" width="100%" bgcolor="#FAFAFA" style="border-collapse: collapse;margin: auto">
-
-    <tbody>
-    <tr>
-      <td style="padding: 50px; background-color: #fff; max-width: 660px">
-        <table width="100%" style="">
-          <tr>
-            <td style="text-align:center">
-            <h1 style="font-size: 30px; color: #4f46e5; margin-top: 0;">New Booking Request</h1> 
-            <h1 style="font-size: 30px; color: #202225; margin-top: 0;">Hello Admin</h1>
-              <p style="font-size: 18px; margin-bottom: 30px; color: #202225; max-width: 60ch; margin-left: auto; margin-right: auto">A new booking has been requested on our platform. Please review the booking details provided below and click the button to view the booking.</p>
-               <h1 style="font-size: 25px;text-align: left; color: #202225; margin-top: 0;">Booking Details</h1>
-              <div style="text-align: justify; margin:20px; display: flex;">
-                
-                <div style="flex: 1; margin-right: 20px;">
-                  <h1 style="font-size: 20px; color: #202225; margin-top: 0;">EVENT NAME	 :</h1>
-                  <h1 style="font-size: 20px; color: #202225; margin-top: 0;">HALL NAME	 :</h1>
-                  <h1 style="font-size: 20px; color: #202225; margin-top: 0;">ORGANIZING CLUB	 :</h1>
-                  <h1 style="font-size: 20px; color: #202225; margin-top: 0;">INSTITUTION :</h1>
-                       <h1 style="font-size: 20px; color: #202225; margin-top: 0;">DEPARTMENT :</h1>
-                 
-                </div>
-                <div style="flex: 1;">
-                  <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${eventName}</h1>
-                  <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${bookedHallName}</h1>
-                  <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${organizingClub}</h1>
-                  <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${institution}</h1>
-                       <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${department}</h1>
-              
-                </div>
-              </div>
-              
-              <a href="${process.env.CLIENT_URL}/bookingsView/${bookingId}" style="background-color: #4f46e5; color: #fff; padding: 8px 24px; border-radius: 8px; border-style: solid; border-color: #4f46e5; font-size: 14px; text-decoration: none; cursor: pointer">View Booking</a>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </tbody>
-
-  </table>
-  </body>
-
-
-  `;
+const isValidObjectId = (id) => {
+  return mongoose.Types.ObjectId.isValid(id);
 };
 
+const normalizeDate = (date) => {
+  const value = new Date(date);
 
+  if (Number.isNaN(value.getTime())) {
+    return null;
+  }
 
-const createBooking = async (req, res, next) => {
+  return value;
+};
+
+// ==========================================
+// CREATE BOOKING
+// Buyer requests a property booking
+// ==========================================
+
+const createBooking = async (req, res) => {
   try {
-    const {
-      userId,
-      eventManager,
-      department,
-      institution,
-      eventName,
-      eventDateType,
-      eventDate,
-      eventStartDate,
-      eventEndDate,
-      startTime,
-      endTime,
-      email,
-      bookedHallId,
-      bookedHallName,
-      organizingClub,
-      phoneNumber,
-      altNumber,
-      isApproved
-    } = req.body;
+    const { propertyId, bookingDate, startDate, endDate } = req.body;
 
-    const hall = await Hall.findById(bookedHallId);
-    if (!hall) {
-      return res.status(422).json({ error: 'Hall not found' });
+    // Authentication middleware already verified the user.
+    const buyer = req.rootUser;
+
+    if (!buyer) {
+      return res.status(401).json({
+        error: "Authenticated user not found",
+      });
     }
 
-    
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(422).json({ error: 'user not found' });
+    if (buyer.userType !== "buyer") {
+      return res.status(403).json({
+        error: "Only buyers can create bookings",
+      });
     }
 
-
-    if (eventDateType === "full") {
-      if (!eventDate ) {
-        return res.status(422).json({ error: "Please fill all details" });
-      }
-    }else if(eventDateType === "half") {
-      if (!startTime || !endTime || !eventDate ) {
-        return res.status(422).json({ error: "Please fill all details" });
-      }
-    }else if(eventDateType === "multiple") {
-      if (!eventStartDate || !eventStartDate ) {
-        return res.status(422).json({ error: "Please fill all details" });
-      }else{
-
-        // Check if eventStartDate is before eventEndDate
-        const eventStartDateTime = new Date(eventStartDate);
-        const eventEndDateTime = new Date(eventEndDate);
-        
-        if (eventEndDateTime <= eventStartDateTime) {
-          return res.status(422).json({ error: 'Event end date should be after event start date' });
-        }
-      }
+    if (!propertyId || !bookingDate || !startDate || !endDate) {
+      return res.status(400).json({
+        error: "propertyId, bookingDate, startDate and endDate are required",
+      });
     }
 
-    if (!eventManager || !phoneNumber  || !department || !institution
-      // || !altNumber 
-      || !eventName || !organizingClub ) {
-      return res.status(422).json({ error: "Please fill all details" });
+    const property = await Property.findById(propertyId);
 
-    }
-    // Regular expression to validate full name with at least two words separated by a space
-
-        const nameRegex = /^[\w'.]+\s[\w'.]+\s*[\w'.]*\s*[\w'.]*\s*[\w'.]*\s*[\w'.]*$/;
-
-    if (!nameRegex.test(eventManager)) {
-      return res.status(422).json({ error: "Please enter your full Event Coordinator name" });
+    if (!property) {
+      return res.status(404).json({
+        error: "Property not found",
+      });
     }
 
-   
-      
-
-    // Phone validation
-    if (phoneNumber.length !== 10) {
-      return res.status(422).json({ error: "Please enter a valid 10-digit phone number" });
+    if (property.status !== "active") {
+      return res.status(400).json({
+        error: "This property is not available for booking",
+      });
     }
 
-    // if (altNumber.length !== 10) {
-    //   return res.status(422).json({ error: "Please enter a valid 10-digit alternate number" });
-    // }
-
-   // Validate start and end time
-   const startDateTime = new Date(`2000-01-01T${startTime}:00Z`);
-   const endDateTime = new Date(`2000-01-01T${endTime}:00Z`);
-   
-   // Check if end time is after start time
-   if (endDateTime <= startDateTime) {
-     return res.status(422).json({ error: 'End time should be after start time' });
+    // Prevent a seller from booking their own property.
+    if (property.owner && property.owner.toString() === buyer._id.toString()) {
+      return res.status(400).json({
+        error: "You cannot book your own property",
+      });
     }
 
- 
-    
+    const start = new Date(startDate);
+    const end = new Date(endDate);
 
-    const booking = new Booking({
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return res.status(400).json({
+        error: "Invalid booking dates",
+      });
+    }
 
-      userId:user._id,
-      institution,
-      department,
-      eventManager,
-      eventName,
-      eventDateType,
-      eventDate,
-      eventStartDate,
-      eventEndDate,
-      startTime,
-      endTime,
-      email,
-      bookedHallId: hall._id,
-      bookedHall:hall,
-      bookedHallName,
-      organizingClub,
-      // eventDetailFile,
-      // eventDetailText,
-      phoneNumber,
-      altNumber,
-      isApproved
+    if (start >= end) {
+      return res.status(400).json({
+        error: "End date must be after start date",
+      });
+    }
+
+    const booking = await Booking.findOne({
+      property: property._id,
+      status: {
+        $in: ["pending", "approved"],
+      },
+      startDate: { $lt: end },
+      endDate: { $gt: start },
     });
-    // await booking.validate();
-    // booking.bookedHallId = hall;
-    // await booking.populate(bookedHallId);
+
+    if (booking) {
+      return res.status(409).json({
+        error: "This property is already booked for the selected dates",
+      });
+    }
+
+    const newBooking = new Booking({
+      property: property._id,
+      buyer: buyer._id,
+      seller: property.owner,
+      bookingDate: new Date(bookingDate),
+      startDate: start,
+      endDate: end,
+
+      // IMPORTANT:
+      // Never trust the booking amount sent by the frontend.
+      // The amount is always taken from the property's current price.
+      amount: Number(property.price),
+
+      status: "pending",
+    });
+
+    await newBooking.save();
+
+    const populatedBooking = await Booking.findById(newBooking._id)
+      .populate("property")
+      .populate("buyer", "name email phone userType")
+      .populate("seller", "name email phone userType");
+
+    return res.status(201).json({
+      success: true,
+      message: "Booking request created successfully",
+      booking: populatedBooking,
+    });
+  } catch (error) {
+    console.error("CREATE BOOKING ERROR:", error);
+
+    return res.status(500).json({
+      error: "Failed to create booking",
+      details: error.message,
+    });
+  }
+};
+
+// ==========================================
+// BUYER BOOKINGS
+// ==========================================
+
+const getMyBookings = async (req, res) => {
+  try {
+    const bookings = await Booking.find({
+      buyer: req.rootUser._id,
+    })
+      .populate("property")
+      .populate("seller", "name email phone")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      bookings,
+    });
+  } catch (error) {
+    console.error("GET MY BOOKINGS ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch your bookings",
+    });
+  }
+};
+
+// ==========================================
+// SELLER BOOKINGS
+// ==========================================
+
+const getSellerBookings = async (req, res) => {
+  try {
+    const bookings = await Booking.find({
+      seller: req.rootUser._id,
+    })
+      .populate("property")
+      .populate("buyer", "name email phone")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      bookings,
+    });
+  } catch (error) {
+    console.error("GET SELLER BOOKINGS ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch seller bookings",
+    });
+  }
+};
+
+// ==========================================
+// GET SINGLE BOOKING
+// ==========================================
+
+const getBookingById = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+
+    if (!isValidObjectId(bookingId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid booking ID",
+      });
+    }
+
+    const booking = await Booking.findById(bookingId)
+      .populate("property")
+      .populate("buyer", "name email phone")
+      .populate("seller", "name email phone");
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
+    }
+
+    // -----------------------------
+    // Access control
+    // -----------------------------
+
+    const currentUserId = req.rootUser._id.toString();
+
+    const isBuyer = booking.buyer._id.toString() === currentUserId;
+
+    const isSeller = booking.seller._id.toString() === currentUserId;
+
+    const isAdmin = req.rootUser.userType === "admin";
+
+    if (!isBuyer && !isSeller && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to view this booking",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      booking,
+    });
+  } catch (error) {
+    console.error("GET BOOKING ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch booking",
+    });
+  }
+};
+
+// ==========================================
+// SELLER APPROVE
+// ==========================================
+
+const approveBooking = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+
+    if (!isValidObjectId(bookingId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid booking ID",
+      });
+    }
+
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      seller: req.rootUser._id,
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
+    }
+
+    if (booking.status !== "pending") {
+      return res.status(400).json({
+        success: false,
+        message: "Only pending bookings can be approved",
+      });
+    }
+
+    // Check again before approval.
+    // Another booking may have been approved after this request was created.
+
+    const conflictingBooking = await Booking.findOne({
+      _id: { $ne: booking._id },
+      property: booking.property,
+      status: "approved",
+
+      startDate: {
+        $lt: booking.endDate,
+      },
+
+      endDate: {
+        $gt: booking.startDate,
+      },
+    });
+
+    if (conflictingBooking) {
+      return res.status(409).json({
+        success: false,
+        message: "Another booking is already approved for these dates",
+      });
+    }
+
+    booking.status = "approved";
+    booking.rejectionReason = "";
+
     await booking.save();
 
+    const updatedBooking = await Booking.findById(booking._id)
+      .populate("property")
+      .populate("buyer", "name email phone")
+      .populate("seller", "name email phone");
 
+    return res.status(200).json({
+      success: true,
+      message: "Booking approved successfully",
+      booking: updatedBooking,
+    });
+  } catch (error) {
+    console.error("APPROVE BOOKING ERROR:", error);
 
+    return res.status(500).json({
+      success: false,
+      message: "Failed to approve booking",
+    });
+  }
+};
 
-    const mailOptions = {
-      from: process.env.SENDER_EMAIL,
-      to: hall.hallCreater, // Use the hall creator's email here
-      subject: 'New Booking Request',
-      html:   generateBookingEmailTemplate(eventName, bookedHallName, organizingClub, institution, department, booking._id),
-      
-    };
+// ==========================================
+// SELLER REJECT
+// ==========================================
 
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error('Error sending email:', error);
-      } else {
-        console.log('Email sent:', info.response);
-      }
+const rejectBooking = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { rejectionReason } = req.body;
+
+    if (!isValidObjectId(bookingId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid booking ID",
+      });
+    }
+
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      seller: req.rootUser._id,
     });
 
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
+    }
 
-  
+    if (booking.status !== "pending") {
+      return res.status(400).json({
+        success: false,
+        message: "Only pending bookings can be rejected",
+      });
+    }
 
+    booking.status = "rejected";
+    booking.rejectionReason =
+      rejectionReason?.trim() || "Booking request rejected";
 
+    await booking.save();
 
-    res.status(201).json({ message: 'Booking created successfully' });
+    const updatedBooking = await Booking.findById(booking._id)
+      .populate("property")
+      .populate("buyer", "name email phone")
+      .populate("seller", "name email phone");
+
+    return res.status(200).json({
+      success: true,
+      message: "Booking rejected successfully",
+      booking: updatedBooking,
+    });
   } catch (error) {
-    next(error);
+    console.error("REJECT BOOKING ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to reject booking",
+    });
   }
 };
 
+// ==========================================
+// BUYER CANCEL
+// ==========================================
 
-
-
-const getEvents = async (req, res, next) => {
-  try {
-    const currentDate = new Date().toISOString();
-
-    const bookings = await Booking.find({
-      isApproved: "Approved By Admin",
-      $or: [
-        {
-          eventDateType: { $in: ["full", "half"] },
-          eventDate: { $gte: currentDate }
-        },
-        {
-          eventDateType: "multiple",
-          eventEndDate: { $gte: currentDate }
-        }
-      ]
-    }).populate('bookedHallId');
-    
-    res.json({ bookings });
-  } catch (error) {
-    next(error);
-  }
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-const getBookings = async (req, res, next) => {
-  try {
-    const bookings = await Booking.find().populate('bookedHallId').populate('userId');
-
-    
-    res.json({ bookings });
-  } catch (error) {
-    next(error);
-  }
-};
-
-
-const getBookingById = async (req, res, next) => {
-  // console.log("function called");
-
+const cancelBooking = async (req, res) => {
   try {
     const { bookingId } = req.params;
-    const booking = await Booking.findById(bookingId).populate('bookedHallId').populate('userId');
-    // console.log(booking);
+    const { cancellationReason } = req.body;
+
+    if (!isValidObjectId(bookingId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid booking ID",
+      });
+    }
+
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      buyer: req.rootUser._id,
+    });
+
     if (!booking) {
-      return res.status(404).json({ error: 'Booking not found' });
-    }
-    
-    res.json({ booking });
-  } catch (error) {
-    next(error);
-  }
-};
-
-const getBookingByUserId = async (req, res, next) => {
-  try {
-    // const { userId } = req.params;
-    const userId = req.rootUser._id
-    const booking = await Booking.find({  userId }).populate('bookedHallId').populate('userId');
-    // if (!mongoose.Types.ObjectId.isValid(userId)) {
-    //   return res.status(400).json({ message: 'Invalid userId' });
-    // }
-    if (!booking) {
-      return res.status(404).json({ message: 'Booking not found' });
-    }
-    res.json({ booking });
-  } catch (error) {
-    next(error);
-  }
-};
-
-
-const getBookingAdmin = async (req, res, next) => {
-  try {
-    let statusArray = ["Approved By HOD", "Approved By Admin", "Rejected By Admin"];
-    const adminEmail = req.rootUser.email;
-    const userId = req.rootUser._id;
-    // console.log("admin bookng");
-    // console.log(adminEmail);
-    if (process.env.REACT_APP_HOD_FEATURE != "true") {
-      statusArray.unshift("Request Sent"); // Add "Request Sent" at the beginning if HOD feature is on
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
     }
 
-    const bookings = await Booking.find({
-       isApproved: { $in: statusArray },
-  $or: [
-    { email: adminEmail},
-    // Add other conditions as needed
-    {'bookedHall.hallCreater': adminEmail },
-  ],
-}
-    ).populate('bookedHallId')
-      .populate('userId');
-      // console.log(bookings);
-    res.json({ bookings });
+    if (!["pending", "approved"].includes(booking.status)) {
+      return res.status(400).json({
+        success: false,
+        message: "This booking cannot be cancelled",
+      });
+    }
+
+    booking.status = "cancelled";
+    booking.cancellationReason =
+      cancellationReason?.trim() || "Cancelled by buyer";
+
+    await booking.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Booking cancelled successfully",
+      booking,
+    });
   } catch (error) {
-    next(error);
+    console.error("CANCEL BOOKING ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to cancel booking",
+    });
   }
 };
 
+// ==========================================
+// ADMIN — ALL BOOKINGS
+// ==========================================
 
-const getBookingHod = async (req, res, next) => {
-  const hodDepartment = req.rootUser.department
-  // console.log(hodDepartment);
+const getAllBookings = async (req, res) => {
   try {
-    const bookings = await Booking.find({ department: hodDepartment }).populate('bookedHallId');
+    const bookings = await Booking.find()
+      .populate("property")
+      .populate("buyer", "name email phone")
+      .populate("seller", "name email phone")
+      .sort({ createdAt: -1 });
 
-    
-    res.json({ bookings });
+    return res.status(200).json({
+      success: true,
+      bookings,
+    });
   } catch (error) {
-    next(error);
+    console.error("GET ALL BOOKINGS ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch bookings",
+    });
   }
 };
 
+// ==========================================
+// ADMIN — UPDATE STATUS
+// ==========================================
 
-
-
-const updateBooking = async (req, res, next) => {
+const adminUpdateBooking = async (req, res) => {
   try {
     const { bookingId } = req.params;
+    const { status, rejectionReason } = req.body;
 
-    const {
-      eventName,
-      eventDateType,
-      eventStartDate,
-      eventEndDate,
-      eventDate,
-      startTime,
-      endTime,
-      // email,
+    const allowedStatuses = [
+      "pending",
+      "approved",
+      "rejected",
+      "cancelled",
+      "completed",
+    ];
 
-      // bookedHallId,
-      // hallId,
-      rejectionReason,
-      isApproved
-    } = req.body;
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid booking status",
+      });
+    }
 
-    // const hall = await Hall.findById(hallId);
-    // if (!hall) {
-    //   return res.status(404).json({ message: 'Hall not found' });
-    // }
-   
+    if (!isValidObjectId(bookingId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid booking ID",
+      });
+    }
 
-
-    const booking = await Booking.findByIdAndUpdate(
-      bookingId,
-      {
-        eventName, eventDate, startTime, endTime,eventDateType,
-        eventStartDate,
-        eventEndDate,
-
-        //  hallId: hall._id,email,
-        isApproved,
-        rejectionReason,
-      },
-      { new: true },
-    ).populate('bookedHallId');
+    const booking = await Booking.findById(bookingId);
 
     if (!booking) {
-      return res.status(404).json({ message: 'Booking not found' });
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
     }
 
+    booking.status = status;
 
-        // Send email based on the updated approval status
-
-    if (isApproved === 'Approved By Admin') {
-      // Send email for approval
-      sendApprovalEmail(booking, bookingId);
-    } else if (isApproved === 'Rejected By Admin') {
-      // Send email for rejection
-      sendRejectionEmail(booking, bookingId , rejectionReason);
+    if (status === "rejected") {
+      booking.rejectionReason = rejectionReason?.trim() || "Rejected by admin";
     }
 
-    res.json({ message: 'Booking updated successfully', booking });
+    await booking.save();
+
+    const updatedBooking = await Booking.findById(booking._id)
+      .populate("property")
+      .populate("buyer", "name email phone")
+      .populate("seller", "name email phone");
+
+    return res.status(200).json({
+      success: true,
+      message: "Booking status updated successfully",
+      booking: updatedBooking,
+    });
   } catch (error) {
-    next(error);
+    console.error("ADMIN UPDATE BOOKING ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update booking",
+    });
   }
 };
 
-
-
-    const sendApprovalEmail = async (booking, bookingId) => {
-      try {
-       
-    
-        const mailOptions = {
-          from: process.env.SENDER_EMAIL,
-          to: booking.email, // Use the user's email associated with the booking
-          subject: 'Booking Request Approved',
-          html: sendApprovalEmailTemplate(booking.eventName, booking.bookedHallName, booking.organizingClub, booking.institution, booking.department, bookingId),
-        };
-    
-        await transporter.sendMail(mailOptions);
-      } catch (error) {
-        next(error);
-      }
-    };
-
-
-    const sendRejectionEmail = async (booking,  bookingId ,rejectionReason) => {
-      try {
-       
-    
-        const mailOptions = {
-          from: process.env.SENDER_EMAIL,
-          to: booking.email, // Use the user's email associated with the booking
-          subject: "Booking Request Rejected",
-          html: sendRejectionEmailTemplate(booking.eventName, booking.bookedHallName, booking.organizingClub, booking.institution, booking.department, bookingId ,rejectionReason),
-        };
-    
-        await transporter.sendMail(mailOptions);
-      } catch (error) {
-        console.error('Error sending email:', error);
-      }
-    };
-
-    const sendRejectionEmailTemplate = (eventName, bookedHallName, organizingClub, institution, department, bookingId ,rejectionReason) => {
-      return `
-    
-
-      <head>
-      <meta http-equiv="Content-Type" content="text/html charset=UTF-8" />
-      <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
-      <style>
-        a,
-        a:link,
-        a:visited {
-          text-decoration: none;
-          color: #00788a;
-        }
-      
-        a:hover {
-          text-decoration: underline;
-        }
-      
-        h2,
-        h2 a,
-        h2 a:visited,
-        h3,
-        h3 a,
-        h3 a:visited,
-        h4,
-        h5,
-        h6,
-        .t_cht {
-          color: #000 !important;
-        }
-      
-        .ExternalClass p,
-        .ExternalClass span,
-        .ExternalClass font,
-        .ExternalClass td {
-          line-height: 100%;
-        }
-      
-        .ExternalClass {
-          width: 100%;
-        }
-      </style>
-      </head>
-      
-      <body style="font-size: 1.25rem;font-family: 'Roboto', sans-serif;padding-left:20px;padding-right:20px;padding-top:20px;padding-bottom:20px; background-color: #FAFAFA; width: 75%; max-width: 1280px; min-width: 600px; margin-right: auto; margin-left: auto">
-      <table cellpadding="12" cellspacing="0" width="100%" bgcolor="#FAFAFA" style="border-collapse: collapse;margin: auto">
-  
-        <tbody>
-        <tr>
-          <td style="padding: 50px; background-color: #fff; max-width: 660px">
-            <table width="100%" style="">
-              <tr>
-                <td style="text-align:center">
-                 
-                  <h1 style="font-size: 30px; color: #ef4444; margin-top: 0;">Booking Request Rejected</h1>
-                  
-                  <h1 style="font-size: 30px; color: #202225; margin-top: 0;">Hello User</h1>
-                  <p style="font-size: 18px; margin-bottom: 30px; color: #202225; max-width: 60ch; margin-left: auto; margin-right: auto">Your booking request has been rejected due to following reason. Please review the booking details provided below and click the button below to view the booking.</p>
-                    <h1 style="font-size: 25px;text-align: left; color: #202225; margin-top: 0;">Reason for Rejection</h1>
-                  <p style="font-size: 18px; margin-bottom: 30px; color: #202225; max-width: 60ch; text-align: left;">${rejectionReason}</p>
-                   <h1 style="font-size: 25px;text-align: left; color: #202225; margin-top: 0;">Booking Details</h1>
-                  
-                  <div style="text-align: justify; margin:20px; display: flex;">
-                    
-                    <div style="flex: 1; margin-right: 20px;">
-                      <h1 style="font-size: 20px; color: #202225; margin-top: 0;">EVENT NAME	 :</h1>
-                      <h1 style="font-size: 20px; color: #202225; margin-top: 0;">HALL NAME	 :</h1>
-                      <h1 style="font-size: 20px; color: #202225; margin-top: 0;">ORGANIZING CLUB	 :</h1>
-                      <h1 style="font-size: 20px; color: #202225; margin-top: 0;">INSTITUTION :</h1>
-                           <h1 style="font-size: 20px; color: #202225; margin-top: 0;">DEPARTMENT :</h1>
-                     
-                    </div>
-                    <div style="flex: 1;">
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${eventName}</h1>
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${bookedHallName}</h1>
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${organizingClub}</h1>
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${institution}</h1>
-                         <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${department}</h1>
-                
-                  </div>
-                  </div>
-                  
-                  <a href="${process.env.CLIENT_URL}/bookingsView/${bookingId}"  style="background-color: #4f46e5; color: #fff; padding: 8px 24px; border-radius: 8px; border-style: solid; border-color: #4f46e5; font-size: 14px; text-decoration: none; cursor: pointer">View Booking</a>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </tbody>
-  
-      </table>
-      </body>
-  
-  
-  
-      `;
-    };
-
-    const sendApprovalEmailTemplate = (eventName, bookedHallName, organizingClub, institution, department, bookingId) => {
-      return `
-    
-
-      <head>
-      <meta http-equiv="Content-Type" content="text/html charset=UTF-8" />
-      <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
-      <style>
-        a,
-        a:link,
-        a:visited {
-          text-decoration: none;
-          color: #00788a;
-        }
-      
-        a:hover {
-          text-decoration: underline;
-        }
-      
-        h2,
-        h2 a,
-        h2 a:visited,
-        h3,
-        h3 a,
-        h3 a:visited,
-        h4,
-        h5,
-        h6,
-        .t_cht {
-          color: #000 !important;
-        }
-      
-        .ExternalClass p,
-        .ExternalClass span,
-        .ExternalClass font,
-        .ExternalClass td {
-          line-height: 100%;
-        }
-      
-        .ExternalClass {
-          width: 100%;
-        }
-      </style>
-      </head>
-      
-      <body style="font-size: 1.25rem;font-family: 'Roboto', sans-serif;padding-left:20px;padding-right:20px;padding-top:20px;padding-bottom:20px; background-color: #FAFAFA; width: 75%; max-width: 1280px; min-width: 600px; margin-right: auto; margin-left: auto">
-      <table cellpadding="12" cellspacing="0" width="100%" bgcolor="#FAFAFA" style="border-collapse: collapse;margin: auto">
-  
-        <tbody>
-        <tr>
-          <td style="padding: 50px; background-color: #fff; max-width: 660px">
-            <table width="100%" style="">
-              <tr>
-                <td style="text-align:center">
-                 
-                  <h1 style="font-size: 30px; color: #16a34a; margin-top: 0;">Booking Request Approved</h1>
-                  
-                  <h1 style="font-size: 30px; color: #202225; margin-top: 0;">Hello User</h1>
-                  <p style="font-size: 18px; margin-bottom: 30px; color: #202225; max-width: 60ch; margin-left: auto; margin-right: auto">Your booking request has been approved. Please review the booking details provided below and click the button below to view the booking.</p>
-                   <h1 style="font-size: 25px;text-align: left; color: #202225; margin-top: 0;">Booking Details</h1>
-                  
-                  <div style="text-align: justify; margin:20px; display: flex;">
-                    
-                    <div style="flex: 1; margin-right: 20px;">
-                      <h1 style="font-size: 20px; color: #202225; margin-top: 0;">EVENT NAME	 :</h1>
-                      <h1 style="font-size: 20px; color: #202225; margin-top: 0;">HALL NAME	 :</h1>
-                      <h1 style="font-size: 20px; color: #202225; margin-top: 0;">ORGANIZING CLUB	 :</h1>
-                      <h1 style="font-size: 20px; color: #202225; margin-top: 0;">INSTITUTION :</h1>
-                           <h1 style="font-size: 20px; color: #202225; margin-top: 0;">DEPARTMENT :</h1>
-                     
-                    </div>
-                    <div style="flex: 1;">
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${eventName}</h1>
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${bookedHallName}</h1>
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${organizingClub}</h1>
-                    <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${institution}</h1>
-                         <h1 style="font-size: 20px; color: #202225; margin-top: 0;">${department}</h1>
-                
-                  </div>
-                  </div>
-                  
-                  <a href="${process.env.CLIENT_URL}/bookingsView/${bookingId}"  style="background-color: #4f46e5; color: #fff; padding: 8px 24px; border-radius: 8px; border-style: solid; border-color: #4f46e5; font-size: 14px; text-decoration: none; cursor: pointer">View Booking</a>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </tbody>
-  
-      </table>
-      </body>
-  
-  
-      `;
-    };
-
-const deleteBooking = async (req, res, next) => {
-  try {
-    const { bookingId } = req.params;
-    const booking = await Booking.findByIdAndDelete(bookingId);
-    if (!booking) {
-      return res.status(404).json({ message: 'Booking not found' });
-    }
-    res.json({ message: 'Booking deleted successfully' });
-  } catch (error) {
-    next(error);
-  }
+module.exports = {
+  createBooking,
+  getMyBookings,
+  getSellerBookings,
+  getBookingById,
+  approveBooking,
+  rejectBooking,
+  cancelBooking,
+  getAllBookings,
+  adminUpdateBooking,
 };
-
-module.exports = { createBooking, getBookings, getBookingById, updateBooking, deleteBooking, getBookingByUserId, getEvents,getBookingAdmin ,getBookingHod};
